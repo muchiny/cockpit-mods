@@ -18,8 +18,11 @@ là-bas) : le banc de status-band, `../status-band/`, s'en sert aussi.
 sources, `--only id,id` en rejoue, `--report` relit les derniers verdicts.
 Les verdicts sont gardés par source (`mutation/<source>.json`) avec
 l'empreinte du code jugé : une source modifiée depuis est dite PÉRIMÉE. Il
-tourne sur 4 copies dans `/var/tmp` (disque, pas le tmpfs `/tmp`) et refuse
-de démarrer sous 8 Go de RAM libre.
+tourne sur 4 copies et refuse de démarrer sous 8 Go de RAM libre.
+
+Les copies de travail des trois scripts (couverture, dessins, mutation) sont
+dans `work/`, ici même : sur disque (pas le tmpfs `/tmp`), dans un dossier à
+nous seuls, ignoré par git.
 
 ## Dessins approuvés
 

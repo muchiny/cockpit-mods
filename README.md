@@ -103,8 +103,8 @@ node coverage.mjs                 # couverture 100 % sur les quatre axes
 `tsc` et ESLint lisent les types du moteur (`<mod>/.claude-plugin/types/`),
 que Claude Code écrit quand une session charge le mod : charger le mod une fois
 avant de les lancer. Le mutation testing (`node mutation.mjs` dans chaque
-banc) est à part, long, et prévu pour Linux : copies de travail sur disque
-(`/var/tmp` pour plan-de-vol, `qa/status-band/.mutation` pour status-band),
+banc) est à part, long, et prévu pour Linux : copies de travail sur disque,
+dans chaque banc (`qa/plan-de-vol/work`, `qa/status-band/.mutation`),
 8 Go de RAM libre exigés. Le détail du banc de plan-de-vol, ses
 exclusions et ses mutants équivalents sont dans
 [`qa/plan-de-vol/README.md`](qa/plan-de-vol/README.md).

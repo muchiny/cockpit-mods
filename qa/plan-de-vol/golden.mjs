@@ -13,12 +13,15 @@ import { spawnSync } from 'node:child_process'
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import vm from 'node:vm'
+
+import ts from 'typescript'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const MOD = resolve(HERE, '../../plan-de-vol')
-// Sur disque, pas dans /tmp (tmpfs en RAM sur cette machine).
-const WORK = '/var/tmp/plan-de-vol-qa/golden'
+// La copie de travail reste dans le banc, comme celles de status-band : sur
+// disque (/tmp est un tmpfs en RAM sur cette machine) et dans un dossier à
+// nous seuls, pas dans un dossier temporaire ouvert à tous.
+const WORK = join(HERE, 'work', 'golden')
 const GOLDEN = join(MOD, 'tests', 'golden.ts')
 const MARK = '__PDV_GOLDEN__'
 const CHUNK = 2000
@@ -71,10 +74,24 @@ if (Object.keys(scenes).length === 0) {
   process.exit(1)
 }
 
-// Les dessins approuvés jusqu'ici : le fichier est le nôtre, un littéral d'objet.
-const before = existsSync(GOLDEN)
-  ? vm.runInNewContext(`(${readFileSync(GOLDEN, 'utf8').replace(/^[\s\S]*?= \{/, '{')})`)
-  : {}
+// Les dessins approuvés jusqu'ici, lus sans exécuter le fichier : GOLDEN est
+// un littéral d'objet dont chaque valeur est un texte sans substitution.
+function approved(path) {
+  const file = ts.createSourceFile(path, readFileSync(path, 'utf8'), ts.ScriptTarget.Latest)
+  const declared = file.statements.filter(ts.isVariableStatement).flatMap(s => s.declarationList.declarations)
+  const golden = declared.find(d => ts.isIdentifier(d.name) && d.name.text === 'GOLDEN')?.initializer
+  if (!golden || !ts.isObjectLiteralExpression(golden)) throw new Error(`${path} : littéral GOLDEN introuvable`)
+
+  return Object.fromEntries(
+    golden.properties.map(p => {
+      if (!ts.isPropertyAssignment(p) || !ts.isStringLiteralLike(p.name) || !ts.isStringLiteralLike(p.initializer)) {
+        throw new Error(`${path} : entrée illisible, « ${p.getText(file).slice(0, 60)} »`)
+      }
+      return [p.name.text, p.initializer.text]
+    }),
+  )
+}
+const before = existsSync(GOLDEN) ? approved(GOLDEN) : {}
 const added = Object.keys(scenes).filter(name => !(name in before))
 const changed = Object.keys(scenes).filter(name => name in before && before[name] !== scenes[name])
 const removed = Object.keys(before).filter(name => !(name in scenes))

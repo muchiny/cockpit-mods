@@ -96,7 +96,7 @@ type Flight = { nav: Nav; ledger: Ledger; last: Promise<void> }
 // claude-opus-5-5 → opus 5.5 ; claude-sonnet-4-5-20250929[1m] → sonnet 4.5 ;
 // anything else as it came. The cockpit sets the case.
 function prettyModel(id: string): string {
-  const bare = id.replace(/\[.*\]$/, '').replace(/-\d{8}$/, '').replace(/^claude-/, '')
+  const bare = id.replace(/\[[^[\]]*\]$/, '').replace(/-\d{8}$/, '').replace(/^claude-/, '')
   if (!/^[a-z]+(?:-\d+)*$/.test(bare)) return id
   const family = bare.replace(/-.*/, '')
   const version = bare.slice(family.length + 1).replaceAll('-', '.')
@@ -106,7 +106,7 @@ function prettyModel(id: string): string {
 
 // When a rate-limit window resets, if it says so in a date that reads.
 function resetOf(limit: { resetsAt?: string } | undefined): number | null {
-  const at = limit?.resetsAt === undefined ? NaN : Date.parse(limit.resetsAt)
+  const at = limit?.resetsAt === undefined ? Number.NaN : Date.parse(limit.resetsAt)
 
   return Number.isNaN(at) ? null : at
 }

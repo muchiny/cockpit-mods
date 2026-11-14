@@ -22,8 +22,10 @@ import schema from '@istanbuljs/schema'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const MOD = resolve(HERE, '../../plan-de-vol')
-// Sur disque, pas dans /tmp (tmpfs en RAM sur cette machine).
-const WORK = '/var/tmp/plan-de-vol-qa/coverage'
+// La copie de travail reste dans le banc, comme celles de status-band : sur
+// disque (/tmp est un tmpfs en RAM sur cette machine) et dans un dossier à
+// nous seuls, pas dans un dossier temporaire ouvert à tous.
+const WORK = join(HERE, 'work', 'coverage')
 const MARK = '__PDV_COV__'
 const CHUNK = 2000
 

@@ -3,8 +3,8 @@
 // Chaque mutant (une petite faute plantée dans une source de hooks/, à la
 // manière de Stryker) est appliqué à une copie du mod sur disque, puis
 // `claude plugin test` tourne sur la copie : un test qui échoue le tue, une
-// suite verte le laisse survivre. Les copies sont dans /var/tmp (disque),
-// jamais dans /tmp (tmpfs en RAM sur cette machine).
+// suite verte le laisse survivre. Les copies restent dans le banc (work/,
+// sur disque), jamais dans /tmp (tmpfs en RAM sur cette machine).
 //
 // Usage :
 //   node mutation.mjs                    tous les mutants, 4 copies en parallèle
@@ -33,7 +33,7 @@ import ts from 'typescript'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const MOD = resolve(HERE, '../../plan-de-vol')
-const WORK = '/var/tmp/plan-de-vol-qa/mutation'
+const WORK = join(HERE, 'work', 'mutation')
 const OUT = join(HERE, 'mutation')
 const FILES = ['text.ts', 'fleet.ts', 'summary.ts', 'chart.ts', 'logbook.ts', 'warp.tsx', 'register.tsx']
 const TIMEOUT_MS = 120_000
@@ -175,10 +175,20 @@ if (flag('--report')) process.exit(report())
 let mutants = FILES.filter(name => !onlyFiles || onlyFiles.includes(name)).flatMap(name => mutantsOf(name, sources[name]))
 if (onlyIds) mutants = mutants.filter(m => onlyIds.includes(m.id))
 
+// La famille d'un mutant, pour le décompte : ce qui précède son premier
+// espace quand une flèche suit (« opérateur → »), et toute méthode sous un
+// seul nom.
+function family(kind) {
+  const space = kind.indexOf(' ')
+  const short = space >= 0 && kind.includes('→', space) ? `${kind.slice(0, space)} →` : kind
+
+  return short.replace(/^\.\S+/, '.méthode')
+}
+
 if (flag('--list')) {
   const byFile = Object.groupBy(mutants, m => m.file)
   for (const [name, list] of Object.entries(byFile)) console.log(`${name.padEnd(14)} ${String(list.length).padStart(4)} mutants`)
-  const byKind = Object.groupBy(mutants, m => m.kind.replace(/ .*→.*/, ' →').replace(/^\.\S+/, '.méthode'))
+  const byKind = Object.groupBy(mutants, m => family(m.kind))
   console.log(Object.entries(byKind).map(([k, l]) => `${k}: ${l.length}`).join(' · '))
   console.log(`total : ${mutants.length}`)
   process.exit(0)

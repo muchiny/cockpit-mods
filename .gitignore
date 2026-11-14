@@ -6,6 +6,7 @@ qa/status-band/.coverage/
 qa/status-band/.mutation/
 qa/plan-de-vol/coverage/
 qa/plan-de-vol/mutation/
+qa/plan-de-vol/work/
 *.log
 
 # Types du moteur : Claude Code les réécrit à chaque chargement d'un mod.

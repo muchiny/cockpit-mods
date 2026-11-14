@@ -574,12 +574,13 @@ export const register: Register = on => {
     const result = await next(e)
     // A refused spawn, or one a hook answered, started no agent.
     const id = result.agentId
-    if (id === undefined) return result
-    const workflow = e.workflow === undefined ? undefined : { toolUseId: e.tool_use_id, runId: e.workflow.runId }
-    // The first of its names that says something.
-    const names = [e.description, e.name, e.workflow ? `agent ${e.workflow.agentIndex}` : e.subagentType]
-    const name = names.find(n => n !== undefined && n !== '') ?? 'agent'
-    queue($, { fleet: launch(workflow, id, name) })
+    if (id !== undefined) {
+      const workflow = e.workflow === undefined ? undefined : { toolUseId: e.tool_use_id, runId: e.workflow.runId }
+      // The first of its names that says something.
+      const names = [e.description, e.name, e.workflow ? `agent ${e.workflow.agentIndex}` : e.subagentType]
+      const name = names.find(n => n !== undefined && n !== '') ?? 'agent'
+      queue($, { fleet: launch(workflow, id, name) })
+    }
 
     return result
   }).catch(passOn)
@@ -587,18 +588,18 @@ export const register: Register = on => {
   on('turn.complete', async ($, e, next) => {
     const result = await next(e)
     if (e.agentId !== undefined) {
-      // Aborted, refused or cut by an error: the drone is lost.
+      // An agent's turn. Aborted, refused or cut by an error: the drone is lost.
       queue($, { fleet: land(e.agentId, e.reason === 'answer' ? 'done' : 'failed') })
-      return result
+    } else {
+      await flush($)
+      // No question outlives its turn, whatever became of the call that asked it.
+      await update($, live, l => ({ ...l, isWorking: false, action: null, question: null }))
+      // What waited behind this turn can start now.
+      const now = await $.clock.now()
+      await update($, plan, p => ({ ...p, pending: restamp(p.pending, now) }))
+      void reconcileFleet($).catch(log($, 'flotte'))
+      settleSoon($, () => refresh($))
     }
-    await flush($)
-    // No question outlives its turn, whatever became of the call that asked it.
-    await update($, live, l => ({ ...l, isWorking: false, action: null, question: null }))
-    // What waited behind this turn can start now.
-    const now = await $.clock.now()
-    await update($, plan, p => ({ ...p, pending: restamp(p.pending, now) }))
-    void reconcileFleet($).catch(log($, 'flotte'))
-    settleSoon($, () => refresh($))
 
     return result
   })
