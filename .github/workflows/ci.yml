@@ -36,9 +36,15 @@ jobs:
           cache-dependency-path: qa/package-lock.json
       - name: Dépendances des bancs
         working-directory: qa
-        run: npm ci
+        # Aucune dépendance des bancs n'a de script d'installation.
+        run: npm ci --ignore-scripts
       - name: Claude Code
-        run: npm install --global "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}"
+        # Sans scripts de cycle de vie non plus : seul le postinstall du
+        # paquet nommé est lancé, à la main (il pose le binaire natif).
+        run: |
+          npm install --global --ignore-scripts "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}"
+          node "$(npm root --global)/@anthropic-ai/claude-code/install.cjs"
+          claude --version
       - name: Validation (marketplace et mods)
         run: |
           claude plugin validate .
