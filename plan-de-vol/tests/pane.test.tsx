@@ -1,9 +1,8 @@
 import { expect, test } from 'claude-code/testing'
 
 import { palette } from '../hooks/chart'
-import { assistant, command, complete, COMPOSER, endTurn, engine, PANE, prompt, reply, REPLY, shows, spawn, start, step, typeOver, user } from './engine'
+import { assistant, command, complete, COMPOSER, endTurn, engine, PANE, prompt, reply, REPLY, shows, spawn, start, stations, step, typeOver, user } from './engine'
 import type { Engine } from './engine'
-import { lines } from './surface'
 
 type Node = { type?: unknown; props?: Record<string, unknown>; children?: unknown[] }
 
@@ -67,7 +66,7 @@ test('a prompt, its work and the summary draw as a flowchart; a quiet turn calls
   expect(await shows($, /Faire le mod/)).toBe(true)
   expect(await shows($, /pour comprendre le câblage/)).toBe(true)
   expect(await shows($, /Valide la maquette/)).toBe(true)
-  expect(await shows($, /OBJECTIF ▸ Logigramme de session/)).toBe(true)
+  expect(await shows($, /OBJECTIF ► Logigramme de session/)).toBe(true)
 
   // Nothing new in the journal: no second completion.
   await endTurn($, kit.clock)
@@ -265,7 +264,7 @@ test('an ultracode fleet: agents launch, act and land in batches, drawn under th
   expect(await shows($, /⟳ 2 en vol/)).toBe(true)
   expect(await shows($, /✓ 1 au hangar/)).toBe(true)
   // Cut short by an error or stopped: lost, not back.
-  expect(await shows($, /✗ 2 perdus/)).toBe(true)
+  expect(await shows($, /× 2 perdus/)).toBe(true)
   expect(await shows($, /review:perf · Liste les fichiers/)).toBe(true)
 })
 
@@ -607,7 +606,7 @@ test('the pane draws on every surface, with or without the warp header', async (
 
   for (const surface of ['terminal', 'desktop', 'vscode', 'mobile'] as const) {
     const ui = await $.ui.mount({ ...PANE, surface })
-    expect(await ui.find({ type: 'Text', text: /OBJECTIF ▸ Logigramme de session/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /OBJECTIF ► Logigramme de session/ })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: /pour comprendre le câblage/ })).toBeDefined()
     await ui.unmount()
   }
@@ -741,9 +740,9 @@ test('the engine’s word lands the drones whose end this copy missed, a silent 
   await endTurn($, kit.clock)
 
   expect(await shows($, /✓ 1 au hangar/)).toBe(true)
-  expect(await shows($, /✗ 1 perdu(?!s)/)).toBe(true)
+  expect(await shows($, /× 1 perdu(?!s)/)).toBe(true)
   // The one the engine still runs is still silent.
-  expect(await shows($, /◌ 1 en silence radio/)).toBe(true)
+  expect(await shows($, /○ 1 en silence radio/)).toBe(true)
 })
 
 test('a long transcript seeds its newest batch of prompts, each with the lines after it', async ($, on) => {
@@ -825,15 +824,6 @@ test('a subagent’s words stay out of the mission’s journal; a call that is n
 })
 
 const NOTIFICATION = { kind: 'task-notification' } as const
-
-// The stations on the route, then the chosen mission's quote.
-async function stations($: Engine): Promise<string[]> {
-  const ui = await $.ui.mount(PANE)
-  const drawn = lines(await ui.drawn()).map(line => line.trim())
-  await ui.unmount()
-
-  return drawn.flatMap(line => (/^(P\d+ *)+$/.test(line) ? line.split(/ +/) : /^« .* »$/.test(line) ? [line] : []))
-}
 
 test('a late prompt of the turn that ended, settling while an idle one enters, takes nothing from it', async ($, on) => {
   const kit = engine($, on)
@@ -991,7 +981,7 @@ test('every row the pane draws fits its width, the narrowest as the widest', asy
 test('the fill is the person’s to choose: transparent shows the console, gris the glass, kept across sessions', async ($, on) => {
   const kit = engine($, on)
   await start($, kit.clock)
-  expect(kit.commands.find(c => c.name === 'plan-de-vol')?.argumentHint).toBe('[transparent|gris]')
+  expect(kit.commands.find(c => c.name === 'plan-de-vol')?.argumentHint).toBe('[transparent|gris|export [chemin]]')
   const glass = palette('dark').glass
   const fills = async () => {
     const ui = await $.ui.mount(PANE)
@@ -1009,7 +999,7 @@ test('the fill is the person’s to choose: transparent shows the console, gris 
   await $.config.set({ key: 'theme', value: 'dark', previous: 'dark', provider: { plugin: 'engine', tier: 'core' }, origin: COMPOSER })
   expect(await fills()).not.toContain(glass)
 
-  expect((await run('vert')).text).toBe('Plan de vol ouvert (« vert » : transparent ou gris). Pour naviguer : ctrl+x tab, puis q précédent, d suivant, z position.')
+  expect((await run('vert')).text).toBe('Plan de vol ouvert (« vert » : transparent, gris ou export). Pour naviguer : ctrl+x tab, puis q précédent, d suivant, z position.')
   expect(await fills()).not.toContain(glass)
   expect((await run('gris')).text).toBe('Plan de vol ouvert, fond gris. Pour naviguer : ctrl+x tab, puis q précédent, d suivant, z position.')
   expect(await fills()).toContain(glass)
@@ -1025,7 +1015,7 @@ test('the fill choice says what is drawn: no gray for a theme of unknown lightne
   // The theme unread: none still holds, gray cannot be told.
   expect(await said('TRANSPARENT')).toBe('Plan de vol ouvert, fond transparent')
   expect(await said('Gris')).toBe('Plan de vol ouvert, fond gris indisponible : ton thème ne dit pas s’il est clair ou sombre')
-  expect(await said(`un  mot\n${'x'.repeat(40)}`)).toBe(`Plan de vol ouvert (« un mot ${'x'.repeat(22)}… » : transparent ou gris)`)
+  expect(await said(`un  mot\n${'x'.repeat(40)}`)).toBe(`Plan de vol ouvert (« un mot ${'x'.repeat(22)}… » : transparent, gris ou export)`)
   // Read at the start and for gris, never for none.
   expect(kit.logs.filter(line => line.includes('thème')).length).toBe(2)
 })

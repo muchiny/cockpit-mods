@@ -6,7 +6,10 @@ import { MARGIN, STATION, band, flowchart, objectiveRow, palette, route, station
 import type { Row } from './chart'
 import { EMPTY_FLEET, act, hasRunning, isFlying, land, launch, nameSquadron, reconcile, seen } from './fleet'
 import type { FleetChange, Stamp } from './fleet'
+import { exportName, exportPath, isSavedKey, markdown, parseSaved, savedKey, stale, stowed } from './logbook'
+import type { Saved } from './logbook'
 import {
+  MISSIONS_MAX,
   SYSTEM_BATCH,
   SYSTEM_INCREMENT,
   addMission,
@@ -15,18 +18,16 @@ import {
   batchPrompt,
   failLine,
   freshLines,
-  groupsOf,
   incrementPrompt,
   isBehind,
   label,
+  later,
   logLines,
   logOf,
   parseBatch,
   parseIncrement,
-  newMission,
   question,
   restamp,
-  rowLines,
   settled,
   takePending,
   textLine,
@@ -66,6 +67,8 @@ const FLUSH_MS = 250
 const BACKLOG_MAX = 200
 // The warp header's rows, above the drawing.
 const HEADER_ROWS = 3
+// What `date` is given to say the time.
+const DATE_MS = 2000
 // Who a mission's prompt comes from: the person, at the terminal, through
 // Remote Control, an SDK host (the desktop app) or Slack. A notification's,
 // a peer's or a scheduled prompt's work goes to the mission under way.
@@ -151,8 +154,8 @@ function queue($: EngineInterface, change: Change): void {
   else flushTimer ??= $.clock.after(FLUSH_MS, () => void flush($))
 }
 
-function serial($: EngineInterface, work: () => Promise<void>): void {
-  summaries = summaries.then(work).catch(log($, 'résumé'))
+function serial($: EngineInterface, work: () => Promise<void>, what = 'résumé'): void {
+  summaries = summaries.then(work).catch(log($, what))
 }
 
 async function complete($: EngineInterface, system: string, prompt: string, maxTokens: number): Promise<string | null> {
@@ -225,19 +228,48 @@ async function refresh($: EngineInterface): Promise<void> {
   }
 }
 
-// A plan with no mission on a transcript that has prompts (the pane started
-// on a session under way, a resume): the prompts become missions, their
-// journals written from the rows, for the next refresh to summarize.
+// The plan's copy in the store, under the session's own key: what a resume
+// starts from. Each session writes its key alone, so sessions running at
+// once lose nothing of each other's. Only for a pane a surface draws: a -p
+// run would push a session's copy out with its own. The copies past the
+// newest leave.
+async function stow($: EngineInterface, sessionId?: string): Promise<void> {
+  const p = await read($, plan)
+  if (p.missions.length === 0 || !(await isSeen($))) return
+  await $.store.set(savedKey(sessionId ?? (await $.session.id())), stowed(p, await $.clock.now()))
+  const keys = (await $.store.keys()).filter(isSavedKey)
+  const copies = await Promise.all(keys.map(async key => ({ key, at: parseSaved(await $.store.get(key))?.at ?? -1 })))
+  for (const key of stale(copies)) await $.store.delete(key)
+}
+
+async function recall($: EngineInterface): Promise<Saved | null> {
+  return parseSaved(await $.store.get(savedKey(await $.session.id())))
+}
+
+// The copy unread: the transcript alone gives the plan.
+function unread($: EngineInterface): (err: unknown) => null {
+  return err => {
+    log($, 'sauvegarde')(err)
+    return null
+  }
+}
+
+// A plan with no mission on a session under way (the pane started late, a
+// resume). The session's copy first, as it was saved: nothing Haiku
+// summarized is asked of it again, and a transcript that cannot be read
+// costs only the prompts typed since. Then the prompts the transcript holds
+// past it (all its newest, with no copy) become missions, their journals
+// written from the rows, for the next refresh to summarize.
 async function seed($: EngineInterface): Promise<void> {
   const before = await read($, plan)
   if (before.missions.length > 0) return
-  const rows = await $.session.messages()
-  const groups = groupsOf(rows).slice(-BATCH_MAX)
-  const seeded = groups.map((g, i) =>
-    newMission(i, g.prompt, rows.slice(g.start + 1, groups[i + 1]?.start ?? rows.length).flatMap(rowLines)),
-  )
   // Not over a plan a /clear or a resume started meanwhile, nor over missions.
-  await update($, plan, p => (p.epoch !== before.epoch || p.missions.length > 0 ? p : { ...p, missions: seeded }))
+  const isAsLeft = (p: Plan, missions: number): boolean => p.epoch === before.epoch && p.missions.length === missions
+  const saved = await recall($).catch(unread($))
+  const kept = saved?.missions ?? []
+  if (saved !== null) await update($, plan, p => (isAsLeft(p, 0) ? { ...p, objective: saved.objective, missions: kept } : p))
+  const added = later(kept.at(-1), await $.session.messages(), BATCH_MAX)
+  await update($, plan, p => (isAsLeft(p, kept.length) ? { ...p, missions: [...p.missions, ...added].slice(-MISSIONS_MAX) } : p))
 }
 
 // New missions: what came before them is written first, to the missions it
@@ -302,12 +334,51 @@ async function catchUp($: EngineInterface): Promise<void> {
   await refresh($)
 }
 
+// What a load, /plan-de-vol and a turn's end owe the plan, one after the
+// other: its copy as it stands (Haiku may take a minute), the summary, its
+// copy with the new steps.
+function settleSoon($: EngineInterface, work: () => Promise<void>): void {
+  serial($, () => stow($), 'sauvegarde')
+  serial($, work)
+  serial($, () => stow($), 'sauvegarde')
+}
+
+// The local time, by `date`: the mod's environment may not carry the host's
+// timezone. Where date cannot say, the clock's, in UTC and said so.
+async function localTime($: EngineInterface, now: number): Promise<string> {
+  const ran = await $.process.run(['date', '+%Y-%m-%d %H:%M'], { timeoutMs: DATE_MS }).catch(() => null)
+  const out = ran?.exitCode === 0 ? ran.stdout.trim() : ''
+
+  return out === '' ? `${new Date(now).toISOString().slice(0, 16).replace('T', ' ')} UTC` : out
+}
+
+// `/plan-de-vol export [path]`: the flight plan as a Markdown logbook, for a
+// handover. The pane stays as it is.
+async function exportPlan($: EngineInterface, asked: string): Promise<string> {
+  // A session resumed and not prompted yet has its plan read back first.
+  await seed($).catch(log($, 'reprise'))
+  await flush($)
+  const p = await read($, plan)
+  if (p.missions.length === 0) return 'Plan de vol vide : rien à exporter.'
+  const now = await $.clock.now()
+  const sessionId = await $.session.id()
+  const cwd = await $.session.cwd()
+  const when = await localTime($, now)
+  const path = exportPath(asked, await $.env.get('HOME'), cwd, exportName(when, sessionId))
+  const text = markdown({ plan: p, live: await read($, live), fleet: await read($, fleet), now, when, sessionId, cwd })
+
+  return $.fs.write(path, text).then(
+    () => `Plan de vol exporté : ${path}`,
+    (err: unknown) => `Export impossible vers ${path} : ${String(err)}`,
+  )
+}
+
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     await $.command.register({
       name: 'plan-de-vol',
-      description: 'Ouvre le plan de vol de la session (logigramme) ; transparent ou gris choisit le fond',
-      argumentHint: '[transparent|gris]',
+      description: 'Ouvre le plan de vol de la session (logigramme) ; transparent ou gris choisit le fond, export l’écrit en Markdown',
+      argumentHint: '[transparent|gris|export [chemin]]',
     })
     // A load starts with nothing running in this copy: what the copy before
     // was doing (a summary, a turn it saw start) ended with it.
@@ -319,13 +390,16 @@ export const register: Register = on => {
     const isClosed = (await $.store.get(CLOSED)) === true
     const isMainScreen = (await $.store.get(FULLSCREEN)) === false
     if (!isClosed && !isMainScreen) void $.ui.open(OPEN).catch(log($, 'ouverture'))
-    serial($, () => catchUp($))
+    settleSoon($, () => catchUp($))
 
     return next(e)
   })
 
   on('command.run', { command: 'plan-de-vol' }, async ($, e) => {
-    const word = flatten(e.args).toLowerCase()
+    const args = flatten(e.args)
+    // The path keeps its case; the word may be typed in any.
+    if (/^export(?: |$)/i.test(args)) return { text: await exportPlan($, args.slice('export '.length)) }
+    const word = args.toLowerCase()
     const backdrop = BACKDROPS.get(word)
     if (backdrop !== undefined) {
       await $.store.set(BACKDROP, backdrop)
@@ -340,7 +414,7 @@ export const register: Register = on => {
       word === ''
         ? ''
         : backdrop === undefined
-          ? ` (« ${clip(word, 30)} » : transparent ou gris)`
+          ? ` (« ${clip(word, 30)} » : transparent, gris ou export)`
           : isGrayless
             ? ', fond gris indisponible : ton thème ne dit pas s’il est clair ou sombre'
             : `, fond ${word}`
@@ -348,7 +422,7 @@ export const register: Register = on => {
     await $.store.set(FULLSCREEN, e.presentation.isFullscreen)
     const opened = await $.ui.open(OPEN)
     // What was skipped while the pane was closed.
-    serial($, () => catchUp($))
+    settleSoon($, () => catchUp($))
 
     return {
       text: opened.isPlaced
@@ -376,6 +450,11 @@ export const register: Register = on => {
   }).catch(passOn)
 
   on('session.end', async ($, e, next) => {
+    // What the session leaves is written whole and kept for its return,
+    // under the id it ends with; a copy that cannot be written holds
+    // nothing back.
+    await flush($)
+    await stow($, e.sessionId).catch(log($, 'sauvegarde'))
     if (e.reason === 'clear' || e.reason === 'resume') await reset($)
 
     return next(e)
@@ -519,7 +598,7 @@ export const register: Register = on => {
     const now = await $.clock.now()
     await update($, plan, p => ({ ...p, pending: restamp(p.pending, now) }))
     void reconcileFleet($).catch(log($, 'flotte'))
-    serial($, () => refresh($))
+    settleSoon($, () => refresh($))
 
     return result
   })

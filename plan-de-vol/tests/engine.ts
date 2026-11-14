@@ -2,11 +2,14 @@ import { mock } from 'claude-code/testing'
 import type { MockClock, TestBody } from 'claude-code/testing'
 import type { AgentStatus, ConfigValue, PromptOrigin, SessionMessage } from 'claude-code'
 
+import { lines } from './surface'
+
 // The engine beneath the mod, for pane.test.tsx and the pane's scenes: each
 // hook a test registers stands for the engine beneath the plugin. Claude
 // speaks through turn.step, works through tool.call; the transcript is read
-// only to seed a plan, Haiku is a canned reply, the clock and the store the
-// kit's own.
+// only to seed a plan, Haiku is a canned reply, the clock the kit's own, the
+// store a map the test can read. The session has an id that a /clear or a resume moves on, a
+// folder, a home, and a `date` that says the local time.
 
 export type On = Parameters<TestBody>[1]
 export type Engine = Parameters<TestBody>[0]
@@ -48,15 +51,23 @@ const USAGE = { input_tokens: 1, output_tokens: 1, cache_read_input_tokens: 0, c
 // isPlaced: whether a surface draws the pane (none does in a -p run).
 // isLocked: the engine refuses every setting change. theme null: no theme
 // setting. isTranscriptLost: the transcript cannot be read. failing: the
-// engine calls that throw.
+// engine calls that throw. session: the session's id at the start. home
+// null: no HOME in the environment. time: what `date` prints, null when it
+// fails, a throw when it cannot run.
 type Options = {
   theme?: ConfigValue | null
   store?: Record<string, unknown>
   isPlaced?: boolean
   isLocked?: boolean
   isTranscriptLost?: boolean
-  failing?: readonly ('config.list' | 'agent.list' | 'ui.open')[]
+  failing?: readonly ('config.list' | 'agent.list' | 'ui.open' | 'ui.panes' | 'session.id' | 'fs.write')[]
+  session?: string
+  home?: string | null
+  time?: () => string | null
 }
+
+export const CWD = '/home/pilote/projet'
+export const HOME = '/home/pilote'
 
 export function user(text: string): SessionMessage {
   return { role: 'user', text, toolUses: [] }
@@ -77,9 +88,47 @@ function latch(): { wait: Promise<void>; release: () => void } {
 // The slash commands that start no turn of their own.
 const NO_TURN = new Set(['config'])
 
-export function engine($: Engine, on: On, { theme = 'dark', store = {}, isPlaced = true, isLocked = false, isTranscriptLost = false, failing = [] }: Options = {}) {
+export function engine(
+  $: Engine,
+  on: On,
+  {
+    theme = 'dark',
+    store = {},
+    isPlaced = true,
+    isLocked = false,
+    isTranscriptLost = false,
+    failing = [],
+    session = 's1',
+    home = HOME,
+    time = () => '2026-11-14 02:42',
+  }: Options = {},
+) {
   const clock = mock.clock(on, { now: 0 })
-  mock.store(on, store)
+  // The plugin's store, in memory and open to the test: JSON data in
+  // insertion order, as the engine keeps it. A read can be held.
+  const kept = new Map<string, unknown>(Object.entries(store))
+  let reads: Promise<void> = Promise.resolve()
+  on('store.get', async (_, e) => {
+    await reads
+    return { value: kept.get(e.key) }
+  })
+  on('store.set', (_, e) => {
+    kept.set(e.key, JSON.parse(JSON.stringify(e.value)))
+    return { value: undefined }
+  })
+  on('store.delete', (_, e) => {
+    kept.delete(e.key)
+    return { value: undefined }
+  })
+  on('store.keys', () => ({ value: [...kept.keys()] }))
+  mock.env(on, home === null ? {} : { HOME: home })
+  // The session the process runs now, and the one a resume brings in.
+  let current = session
+  let upcoming: string | null = null
+  let sessions = 1
+  // The files the plugin wrote, and the commands it ran.
+  const files: { path: string; text: string }[] = []
+  const runs: { argv: string[]; timeoutMs: number | undefined }[] = []
   const rows: SessionMessage[] = []
   const asks: string[] = []
   const models: string[] = []
@@ -113,11 +162,34 @@ export function engine($: Engine, on: On, { theme = 'dark', store = {}, isPlaced
     titles.push(e.title ?? '')
     return { value: isPlaced ? { isPlaced: true } : { isPlaced: false, reason: 'no-surface' } }
   })
-  on('ui.panes', () => ({
-    value: [...new Set(opens)].map(id => ({ id, title: 'Plan de vol', isShown: isPlaced, isFocused: false, isPlaced })),
-  }))
+  on('ui.panes', () => {
+    fails('ui.panes')
+    return { value: [...new Set(opens)].map(id => ({ id, title: 'Plan de vol', isShown: isPlaced, isFocused: false, isPlaced })) }
+  })
   on('session.start', (_, e) => ({ cwd: e.cwd }))
-  on('session.end', (_, e) => ({ sessionId: e.sessionId }))
+  // A /clear or a resume: the process goes on under another id, once the
+  // hooks have seen the session end.
+  on('session.end', (_, e) => {
+    if (e.reason === 'clear' || e.reason === 'resume') current = upcoming ?? `s${String(++sessions)}`
+    upcoming = null
+    return { sessionId: e.sessionId }
+  })
+  on('session.id', () => {
+    fails('session.id')
+    return { value: current }
+  })
+  on('session.cwd', () => ({ value: CWD }))
+  on('process.run', (_, e) => {
+    runs.push({ argv: [...e.argv], timeoutMs: e.init?.timeoutMs })
+    const shown = time()
+    const out = shown === null ? { exitCode: 1, stdout: '', stderr: 'date: failed' } : { exitCode: 0, stdout: `${shown}\n`, stderr: '' }
+    return { value: { ...out, isStdoutTruncated: false, isStderrTruncated: false } }
+  })
+  on('fs.write', (_, e) => {
+    fails('fs.write')
+    files.push({ path: e.path, text: e.text })
+    return { value: undefined }
+  })
   on('session.messages', async () => {
     await messages
     if (isTranscriptLost) throw new Error('transcript illisible')
@@ -196,6 +268,11 @@ export function engine($: Engine, on: On, { theme = 'dark', store = {}, isPlaced
     titles,
     logs,
     agents,
+    files,
+    runs,
+    kept,
+    // The session the next resume brings in.
+    resumeInto: (id: string) => void (upcoming = id),
     answer: (text: string | null) => void (reply = text),
     say: (text: string) => void (said = text),
     drop: (reason: string | null) => void (dropped = reason),
@@ -203,6 +280,7 @@ export function engine($: Engine, on: On, { theme = 'dark', store = {}, isPlaced
     hold: hold(wait => (gate = wait)),
     holdTools: hold(wait => (tools = wait)),
     holdMessages: hold(wait => (messages = wait)),
+    holdStore: hold(wait => (reads = wait)),
     answerAbove: (is: boolean) => void (isAnswering = is),
     addToTurns: (text: string) => void (added = text),
     commands,
@@ -289,6 +367,15 @@ export function spawn($: Engine, description: string, workflow?: { toolUseId: st
   return workflow
     ? $.agent.spawn({ ...base, tool_use_id: workflow.toolUseId, workflow: { runId: workflow.runId, agentIndex: 1 } })
     : $.agent.spawn({ ...base, tool_use_id: `call-${description}` })
+}
+
+// The stations on the route, then the chosen mission's quote.
+export async function stations($: Engine): Promise<string[]> {
+  const ui = await $.ui.mount(PANE)
+  const drawn = lines(await ui.drawn()).map(line => line.trim())
+  await ui.unmount()
+
+  return drawn.flatMap(line => (/^(P\d+ *)+$/.test(line) ? line.split(/ +/) : /^« .* »$/.test(line) ? [line] : []))
 }
 
 export async function shows($: Engine, text: RegExp): Promise<boolean> {

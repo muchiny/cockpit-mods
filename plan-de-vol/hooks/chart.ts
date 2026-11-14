@@ -1,7 +1,7 @@
 import type { Color, ThemeKey } from 'claude-code'
 
 import type { Live, Look, Mission, Squadron, StepKind } from '../types'
-import { isSilent } from './fleet'
+import { isSilent, tally } from './fleet'
 import { rawActions } from './summary'
 import { clip, length, plural, wrap } from './text'
 
@@ -76,7 +76,7 @@ const LIVE: Border = { tl: '╔', tr: '╗', bl: '╚', br: '╝', h: '═', v: 
 const PENDING: Border = { tl: '┌', tr: '┐', bl: '└', br: '┘', h: '┄', v: '┆', tee: '┬' }
 const ALERT: Border = { tl: '┏', tr: '┓', bl: '┗', br: '┛', h: '━', v: '┃', tee: '┯' }
 
-const SYMBOL: Record<StepKind, string> = { done: '✓', decision: '◆', fail: '✗', fix: '↺' }
+const SYMBOL: Record<StepKind, string> = { done: '✓', decision: '◆', fail: '×', fix: '⟲' }
 const COLOR: Record<StepKind, ThemeKey> = { done: 'success', decision: ACCENT, fail: 'error', fix: 'warning' }
 const BORDER: Record<StepKind, Border> = { done: ROUND, decision: DECISION, fail: ROUND, fix: ROUND }
 
@@ -190,27 +190,24 @@ function stepCard(step: Mission['steps'][number], inner: number, pal: Palette): 
 // A workflow run or a mission's agents: counts, one mark per drone (enough
 // for an ultracode fleet of dozens), then the drones still flying.
 function fleetCard(squadron: Squadron, inner: number, pal: Palette, now: number): Card {
-  const silent = squadron.drones.filter(d => isSilent(d, now)).length
-  const flying = squadron.drones.filter(d => d.status === 'running' && !isSilent(d, now))
-  const back = squadron.drones.filter(d => d.status === 'done').length
-  const lost = squadron.drones.filter(d => d.status === 'failed').length
+  const { flying, back, lost, silent } = tally(squadron, now)
   const counts = flow(
     [
       { text: `⟳ ${flying.length} en vol`, color: flying.length > 0 ? ACCENT : 'subtle', bold: true },
       { text: `✓ ${back} au hangar`, color: 'success', bold: true },
-      ...(lost > 0 ? [{ text: `✗ ${plural(lost, 'perdu')}`, color: 'error' as const, bold: true }] : []),
-      ...(silent > 0 ? [{ text: `◌ ${silent} en silence radio`, color: 'text' as const }] : []),
+      ...(lost > 0 ? [{ text: `× ${plural(lost, 'perdu')}`, color: 'error' as const, bold: true }] : []),
+      ...(silent > 0 ? [{ text: `○ ${silent} en silence radio`, color: 'text' as const }] : []),
     ],
     inner,
     '   ',
   )
   const marks = squadron.drones.map((d): Seg =>
     isSilent(d, now)
-      ? { text: '◌ ', color: 'text' }
+      ? { text: '○ ', color: 'text' }
       : d.status === 'running'
-        ? { text: '◈ ', color: ACCENT, bold: true }
+        ? { text: '◎ ', color: ACCENT, bold: true }
         : d.status === 'failed'
-          ? { text: '✗ ', color: 'error', bold: true }
+          ? { text: '× ', color: 'error', bold: true }
           : { text: '● ', color: 'success', bold: true },
   )
   const perRow = Math.max(1, Math.floor(inner / 2))
@@ -336,7 +333,7 @@ export function flowchart(args: FlowchartArgs): Row[] {
   for (const [from, to] of loops) {
     loop.set(from, ' ◀─╮')
     loop.set(to, ' ──╯')
-    for (let r = from + 1; r < to; r++) loop.set(r, r === Math.floor((from + to) / 2) ? '   ↺' : '   │')
+    for (let r = from + 1; r < to; r++) loop.set(r, r === Math.floor((from + to) / 2) ? '   ⟲' : '   │')
   }
   const edge = MARGIN + cw
 
@@ -367,7 +364,7 @@ export function route(missions: readonly Mission[], chosen: number, l: Live, loo
     const color: ThemeKey = isWaiting ? 'warning' : isLive && l.isWorking ? ACCENT : 'success'
     track.push({ text: i === chosen ? '◉' : isWaiting ? '◆' : '●', color, bold: true })
     if (i < end) track.push({ text: '━'.repeat(STATION - 1), color: 'success', bold: true })
-    else if (isLive && l.isWorking) track.push({ text: '╍╍▸', color: ACCENT, bold: true })
+    else if (isLive && l.isWorking) track.push({ text: '╍╍►', color: ACCENT, bold: true })
     else if (!isLive) track.push({ text: ' ┄', color: 'text' })
     stations.push({ id: mission.id, label: stationName(mission), isChosen: i === chosen })
   })
@@ -397,7 +394,7 @@ export function band(mission: Mission, isLive: boolean, look: Look, w: number): 
 export function objectiveRow(objective: string | null, hasMissions: boolean, look: Look, w: number): Row {
   return glassRow(
     [
-      { text: 'OBJECTIF ▸ ', color: ACCENT, bold: true },
+      { text: 'OBJECTIF ► ', color: ACCENT, bold: true },
       objective === null
         ? { text: hasMissions ? 'calcul de trajectoire…' : '—', color: 'text', italic: true }
         : { text: clip(objective, w - MARGIN - 13), color: 'text', bold: true },

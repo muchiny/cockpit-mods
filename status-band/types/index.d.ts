@@ -13,6 +13,10 @@ export type Line = {
   fiveHourPercent: number | null
   fiveHourResetsAt: number | null
   sevenDayPercent: number | null
+  sevenDayResetsAt: number | null
+  // What the session took of the week's allowance, in percent: null without
+  // a weekly window, or before the worth of a dollar in it is known.
+  weekSharePercent: number | null
   ramAvailableMb: number | null
   clock: string
   sessionStartedAt: number | null

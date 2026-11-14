@@ -8,7 +8,7 @@ export const GOLDEN: Record<string, string> = {
   <Text wrap="truncate-end">
     <Text> "  "
     <Text backgroundColor="#121212"> " "
-    <Text color="suggestion" backgroundColor="#121212" weight="semibold"> "OBJECTIF ▸ "
+    <Text color="suggestion" backgroundColor="#121212" weight="semibold"> "OBJECTIF ► "
     <Text color="text" backgroundColor="#121212" italic=true> "—"
     <Text backgroundColor="#121212"> "                                                       "
   <Text> " "
@@ -19,7 +19,7 @@ export const GOLDEN: Record<string, string> = {
   <Text wrap="truncate-end">
     <Text> "  "
     <Text backgroundColor="#121212"> " "
-    <Text color="suggestion" backgroundColor="#121212" weight="semibold"> "OBJECTIF ▸ "
+    <Text color="suggestion" backgroundColor="#121212" weight="semibold"> "OBJECTIF ► "
     <Text color="text" backgroundColor="#121212" weight="semibold"> "Logigramme de session"
     <Text backgroundColor="#121212"> "                                   "
   <Text> " "
@@ -93,7 +93,7 @@ export const GOLDEN: Record<string, string> = {
   <Text wrap="truncate-end">
     <Text> "  "
     <Text backgroundColor="#eeeeee"> " "
-    <Text color="suggestion" backgroundColor="#eeeeee" weight="semibold"> "OBJECTIF ▸ "
+    <Text color="suggestion" backgroundColor="#eeeeee" weight="semibold"> "OBJECTIF ► "
     <Text color="text" backgroundColor="#eeeeee" weight="semibold"> "Logigramme de session"
     <Text backgroundColor="#eeeeee"> "               "
   <Text> " "
@@ -171,7 +171,7 @@ export const GOLDEN: Record<string, string> = {
   <Text wrap="truncate-end">
     <Text> "  "
     <Text backgroundColor="#121212"> " "
-    <Text color="suggestion" backgroundColor="#121212" weight="semibold"> "OBJECTIF ▸ "
+    <Text color="suggestion" backgroundColor="#121212" weight="semibold"> "OBJECTIF ► "
     <Text color="text" backgroundColor="#121212" italic=true> "calcul de trajectoire…"
     <Text backgroundColor="#121212"> "                                  "
   <Text> " "
@@ -180,7 +180,7 @@ export const GOLDEN: Record<string, string> = {
     <Text backgroundColor="#121212"> " "
     <Text color="text" backgroundColor="#121212"> " "
     <Text color="suggestion" backgroundColor="#121212" weight="semibold"> "◉"
-    <Text color="suggestion" backgroundColor="#121212" weight="semibold"> "╍╍▸"
+    <Text color="suggestion" backgroundColor="#121212" weight="semibold"> "╍╍►"
     <Text backgroundColor="#121212"> "                                                              "
   <Box flexDirection="row">
     <Text> "  "
@@ -218,8 +218,8 @@ export const GOLDEN: Record<string, string> = {
     <Text wrap="truncate-end">
       <Text> "  "
       <Text color="merged" backgroundColor="#1c1c1c"> "║ "
-      <Text color="suggestion" backgroundColor="#1c1c1c" weight="semibold"> "◈ "
-      <Text color="suggestion" backgroundColor="#1c1c1c" weight="semibold"> "◈ "
+      <Text color="suggestion" backgroundColor="#1c1c1c" weight="semibold"> "◎ "
+      <Text color="suggestion" backgroundColor="#1c1c1c" weight="semibold"> "◎ "
       <Text backgroundColor="#1c1c1c"> "                                                        "
       <Text color="merged" backgroundColor="#1c1c1c"> " ║"
     <Text wrap="truncate-end">
@@ -280,7 +280,7 @@ export const GOLDEN: Record<string, string> = {
   <Text wrap="truncate-end">
     <Text> "  "
     <Text> " "
-    <Text color="suggestion" weight="semibold" bold=true> "OBJECTIF ▸ "
+    <Text color="suggestion" weight="semibold" bold=true> "OBJECTIF ► "
     <Text color="text" italic=true> "calcul de trajectoire…"
   <Text> " "
   <Text wrap="truncate-end">
@@ -317,7 +317,7 @@ export const GOLDEN: Record<string, string> = {
   <Text wrap="truncate-end">
     <Text> "  "
     <Text backgroundColor="#121212"> " "
-    <Text color="suggestion" backgroundColor="#121212" weight="semibold"> "OBJECTIF ▸ "
+    <Text color="suggestion" backgroundColor="#121212" weight="semibold"> "OBJECTIF ► "
     <Text color="text" backgroundColor="#121212" italic=true> "calcul de trajectoire…"
   <Text> " "
   <Text wrap="truncate-end">
@@ -376,7 +376,7 @@ export const GOLDEN: Record<string, string> = {
   <Text wrap="truncate-end">
     <Text> "  "
     <Text backgroundColor="#121212"> " "
-    <Text color="suggestion" backgroundColor="#121212" weight="semibold" bold=true> "OBJECTIF ▸ "
+    <Text color="suggestion" backgroundColor="#121212" weight="semibold" bold=true> "OBJECTIF ► "
     <Text color="text" backgroundColor="#121212" italic=true> "calcul de trajectoire…"
     <Text backgroundColor="#121212"> "    "
   <Text> " "
@@ -432,7 +432,7 @@ export const GOLDEN: Record<string, string> = {
   <Text wrap="truncate-end">
     <Text> "  "
     <Text backgroundColor="#121212"> " "
-    <Text color="suggestion" backgroundColor="#121212" weight="semibold"> "OBJECTIF ▸ "
+    <Text color="suggestion" backgroundColor="#121212" weight="semibold"> "OBJECTIF ► "
     <Text color="text" backgroundColor="#121212" weight="semibold"> "Logigramme de session"
     <Text backgroundColor="#121212"> "                                   "
   <Text> " "
@@ -473,7 +473,7 @@ export const GOLDEN: Record<string, string> = {
     <Text wrap="truncate-end">
       <Text> "  "
       <Text color="error" backgroundColor="#1c1c1c"> "│ "
-      <Text color="error" backgroundColor="#1c1c1c" weight="semibold"> "✗ "
+      <Text color="error" backgroundColor="#1c1c1c" weight="semibold"> "× "
       <Text color="text" backgroundColor="#1c1c1c" weight="semibold"> "Étape 7"
       <Text backgroundColor="#1c1c1c"> "                                                   "
       <Text color="error" backgroundColor="#1c1c1c"> " │"
@@ -489,7 +489,7 @@ export const GOLDEN: Record<string, string> = {
     <Text wrap="truncate-end">
       <Text> "  "
       <Text color="error" backgroundColor="#1c1c1c"> "╰───────────────────────────────┬──────────────────────────────╯"
-      <Text color="warning" weight="semibold"> "   ↺"
+      <Text color="warning" weight="semibold"> "   ⟲"
     <Text wrap="truncate-end">
       <Text> "                                  "
       <Text color="suggestion" weight="semibold"> "▼"
@@ -503,7 +503,7 @@ export const GOLDEN: Record<string, string> = {
     <Text wrap="truncate-end">
       <Text> "  "
       <Text color="warning" backgroundColor="#1c1c1c"> "│ "
-      <Text color="warning" backgroundColor="#1c1c1c" weight="semibold"> "↺ "
+      <Text color="warning" backgroundColor="#1c1c1c" weight="semibold"> "⟲ "
       <Text color="text" backgroundColor="#1c1c1c" weight="semibold"> "Étape 8 menée"
       <Text backgroundColor="#1c1c1c"> "                                             "
       <Text color="warning" backgroundColor="#1c1c1c"> " │"
@@ -740,15 +740,69 @@ Journal depuis :
 · ligne 0017 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 · ligne 0018 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 · ligne 0019 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx`,
-  'objectif · aucun prompt · sans verre': `   OBJECTIF ▸ —                                   
+  'journal de bord · chaque nature d’étape, journal brut, escadrille, la personne attendue': `# Plan de vol — 2026-11-14 02:42
+
+- Session : \`1c0ffee5-0a1b-4c2d-8e3f-5a6b7c8d9e0f\`
+- Dossier : \`/home/pilote/projet\`
+- Contrats : 2
+
+## OBJECTIF
+
+Construire plan-de-vol
+
+## P1 · Logigramme de session
+
+> Construis un logigramme de la session qui grandit au fil du temps, lisible d’un coup d’œil, avec ce qui a été fait, pourquoi, et sur quel prompt
+
+- _Étapes plus anciennes, non gardées : 3_
+- **Fait** : Lu les hooks du mod — Comprendre le rendu du panneau
+- **Décision** : Un seul panneau latéral
+- **Échec** : Tests du rendu étroit en échec sur trois cas — Le pointeur sortait du cadre quand le panneau rétrécissait
+- **Correction** : Bornes du pointeur corrigées — Rejoué au vert
+- **Correction** : Nettoyage
+
+**ESCADRILLE « revue-ultracode »** : 1 en vol, 1 au hangar, 1 perdu, 1 en silence radio
+- en vol : relecteur 0 (Lu chart.ts)
+
+## P2 · « ajoute un export en Markdown »
+
+> ajoute un export
+> en Markdown
+
+**JOURNAL** (pas encore résumé, 2 lignes) :
+
+\`\`\`text
+CLAUDE : Je regarde le rendu
+· Lu chart.ts
+\`\`\`
+
+**À VOUS** : Valider la maquette
+`,
+  'journal de bord · au travail, sans objectif': `# Plan de vol — 2026-11-14 02:42
+
+- Session : \`1c0ffee5-0a1b-4c2d-8e3f-5a6b7c8d9e0f\`
+- Dossier : \`/home/pilote/projet\`
+- Contrats : 1
+
+## OBJECTIF
+
+_Trajectoire non calculée._
+
+## P1 · « fais un mod »
+
+> fais un mod
+
+**MANŒUVRE** : Edit chart.ts
+`,
+  'objectif · aucun prompt · sans verre': `   OBJECTIF ► —                                   
 ──
-0: "  " | " " | "OBJECTIF ▸ " suggestion gras | "—" text italique | "                                   "`,
-  'objectif · en analyse · sombre': `   OBJECTIF ▸ calcul de trajectoire…              
+0: "  " | " " | "OBJECTIF ► " suggestion gras | "—" text italique | "                                   "`,
+  'objectif · en analyse · sombre': `   OBJECTIF ► calcul de trajectoire…              
 ──
-0: "  " | " " fond #121212 | "OBJECTIF ▸ " suggestion fond #121212 gras | "calcul de trajectoire…" text fond #121212 italique | "              " fond #121212`,
-  'objectif · long, coupé · clair': `   OBJECTIF ▸ Construis un logigramme … 
+0: "  " | " " fond #121212 | "OBJECTIF ► " suggestion fond #121212 gras | "calcul de trajectoire…" text fond #121212 italique | "              " fond #121212`,
+  'objectif · long, coupé · clair': `   OBJECTIF ► Construis un logigramme … 
 ──
-0: "  " | " " fond #eeeeee | "OBJECTIF ▸ " suggestion fond #eeeeee gras | "Construis un logigramme …" text fond #eeeeee gras | " " fond #eeeeee`,
+0: "  " | " " fond #eeeeee | "OBJECTIF ► " suggestion fond #eeeeee gras | "Construis un logigramme …" text fond #eeeeee gras | " " fond #eeeeee`,
   'bandeau · en direct, titré': `   P5 · Logigramme de session                               
    « court »                                                
 ──
@@ -782,9 +836,9 @@ Journal depuis :
 0: "  " | " P1 · T… " inverseText fond subtle gras | " archive " inverseText fond warning gras
 1: "  " | " " | "« Construis un" text italique | "   "
 2: "  " | " " | "logigramme de …" text italique | "  "`,
-  'route · trois prompts, le dernier au travail': `    ●━━━━━●━━━━━◉╍╍▸                                        
+  'route · trois prompts, le dernier au travail': `    ●━━━━━●━━━━━◉╍╍►                                        
 ──
-0: "  " | " " fond #121212 | " " text fond #121212 | "●" success fond #121212 gras | "━━━━━" success fond #121212 gras | "●" success fond #121212 gras | "━━━━━" success fond #121212 gras | "◉" suggestion fond #121212 gras | "╍╍▸" suggestion fond #121212 gras | "                                        " fond #121212
+0: "  " | " " fond #121212 | " " text fond #121212 | "●" success fond #121212 gras | "━━━━━" success fond #121212 gras | "●" success fond #121212 gras | "━━━━━" success fond #121212 gras | "◉" suggestion fond #121212 gras | "╍╍►" suggestion fond #121212 gras | "                                        " fond #121212
 ──
 P1#0 P2#1 P3#2 choisie`,
   'route · un ancien choisi, les récents repliés, question posée': `    ●━━━━━●━━━━━●━━━━━◉━━━━━● ┄         
@@ -825,18 +879,18 @@ P1#0 choisie`,
   ◇──────────────────────────┬─────────────────────────◇
                              ▼
   ╭────────────────────────────────────────────────────╮
-  │ ✗ Tests du rendu étroit en échec sur trois cas     │ ◀─╮
+  │ × Tests du rendu étroit en échec sur trois cas     │ ◀─╮
   │   Le pointeur sortait du cadre quand le panneau    │   │
   │   rétrécissait                                     │   │
-  ╰──────────────────────────┬─────────────────────────╯   ↺
+  ╰──────────────────────────┬─────────────────────────╯   ⟲
                              ▼                             │
   ╭────────────────────────────────────────────────────╮   │
-  │ ↺ Bornes du pointeur corrigées                     │ ──╯
+  │ ⟲ Bornes du pointeur corrigées                     │ ──╯
   │   Rejoué au vert                                   │
   ╰──────────────────────────┬─────────────────────────╯
                              ▼
   ╭────────────────────────────────────────────────────╮
-  │ ↺ Nettoyage                                        │
+  │ ⟲ Nettoyage                                        │
   ╰──────────────────────────┬─────────────────────────╯
                              ▼
   ╔═ MANŒUVRE ═════════════════════════════════════════╗
@@ -853,18 +907,18 @@ P1#0 choisie`,
 7: "  " | "◇──────────────────────────┬─────────────────────────◇" suggestion fond #1c1c1c
 8: "                             " | "▼" suggestion gras
 9: "  " | "╭" error fond #1c1c1c | "────────────────────────────────────────────────────╮" error fond #1c1c1c
-10: "  " | "│ " error fond #1c1c1c | "✗ " error fond #1c1c1c gras | "Tests du rendu étroit en échec sur trois cas" text fond #1c1c1c gras | "    " fond #1c1c1c | " │" error fond #1c1c1c | " ◀─╮" warning gras
+10: "  " | "│ " error fond #1c1c1c | "× " error fond #1c1c1c gras | "Tests du rendu étroit en échec sur trois cas" text fond #1c1c1c gras | "    " fond #1c1c1c | " │" error fond #1c1c1c | " ◀─╮" warning gras
 11: "  " | "│ " error fond #1c1c1c | "  " fond #1c1c1c | "Le pointeur sortait du cadre quand le panneau" text fond #1c1c1c | "   " fond #1c1c1c | " │" error fond #1c1c1c | "   │" warning gras
 12: "  " | "│ " error fond #1c1c1c | "  " fond #1c1c1c | "rétrécissait" text fond #1c1c1c | "                                    " fond #1c1c1c | " │" error fond #1c1c1c | "   │" warning gras
-13: "  " | "╰──────────────────────────┬─────────────────────────╯" error fond #1c1c1c | "   ↺" warning gras
+13: "  " | "╰──────────────────────────┬─────────────────────────╯" error fond #1c1c1c | "   ⟲" warning gras
 14: "                             " | "▼" suggestion gras | "                          " | "   │" warning gras
 15: "  " | "╭" warning fond #1c1c1c | "────────────────────────────────────────────────────╮" warning fond #1c1c1c | "   │" warning gras
-16: "  " | "│ " warning fond #1c1c1c | "↺ " warning fond #1c1c1c gras | "Bornes du pointeur corrigées" text fond #1c1c1c gras | "                    " fond #1c1c1c | " │" warning fond #1c1c1c | " ──╯" warning gras
+16: "  " | "│ " warning fond #1c1c1c | "⟲ " warning fond #1c1c1c gras | "Bornes du pointeur corrigées" text fond #1c1c1c gras | "                    " fond #1c1c1c | " │" warning fond #1c1c1c | " ──╯" warning gras
 17: "  " | "│ " warning fond #1c1c1c | "  " fond #1c1c1c | "Rejoué au vert" text fond #1c1c1c | "                                  " fond #1c1c1c | " │" warning fond #1c1c1c
 18: "  " | "╰──────────────────────────┬─────────────────────────╯" warning fond #1c1c1c
 19: "                             " | "▼" suggestion gras
 20: "  " | "╭" warning fond #1c1c1c | "────────────────────────────────────────────────────╮" warning fond #1c1c1c
-21: "  " | "│ " warning fond #1c1c1c | "↺ " warning fond #1c1c1c gras | "Nettoyage" text fond #1c1c1c gras | "                                       " fond #1c1c1c | " │" warning fond #1c1c1c
+21: "  " | "│ " warning fond #1c1c1c | "⟲ " warning fond #1c1c1c gras | "Nettoyage" text fond #1c1c1c gras | "                                       " fond #1c1c1c | " │" warning fond #1c1c1c
 22: "  " | "╰──────────────────────────┬─────────────────────────╯" warning fond #1c1c1c
 23: "                             " | "▼" suggestion gras
 24: "  " | "╔═ " suggestion fond #262626 | "MANŒUVRE" suggestion fond #262626 gras | " " suggestion fond #262626 | "═════════════════════════════════════════╗" suggestion fond #262626
@@ -876,7 +930,7 @@ P1#0 choisie`,
   ◇─────────────┬────────────◇
                 ▼
   ╭──────────────────────────╮
-  │ ✗ Tests du rendu étroit  │
+  │ × Tests du rendu étroit  │
   │   en échec sur trois cas │
   │   Le pointeur sortait du │
   │   cadre quand le panneau │
@@ -884,7 +938,7 @@ P1#0 choisie`,
   ╰─────────────┬────────────╯
                 ▼
   ╭──────────────────────────╮
-  │ ↺ Bornes du pointeur     │
+  │ ⟲ Bornes du pointeur     │
   │   corrigées              │
   │   Rejoué au vert         │
   ╰──────────────────────────╯
@@ -895,7 +949,7 @@ P1#0 choisie`,
 3: "  " | "◇─────────────┬────────────◇" suggestion fond #e4e4e4
 4: "                " | "▼" suggestion gras
 5: "  " | "╭" error fond #e4e4e4 | "──────────────────────────╮" error fond #e4e4e4
-6: "  " | "│ " error fond #e4e4e4 | "✗ " error fond #e4e4e4 gras | "Tests du rendu étroit" text fond #e4e4e4 gras | " " fond #e4e4e4 | " │" error fond #e4e4e4
+6: "  " | "│ " error fond #e4e4e4 | "× " error fond #e4e4e4 gras | "Tests du rendu étroit" text fond #e4e4e4 gras | " " fond #e4e4e4 | " │" error fond #e4e4e4
 7: "  " | "│ " error fond #e4e4e4 | "  " fond #e4e4e4 | "en échec sur trois cas" text fond #e4e4e4 gras | " │" error fond #e4e4e4
 8: "  " | "│ " error fond #e4e4e4 | "  " fond #e4e4e4 | "Le pointeur sortait du" text fond #e4e4e4 | " │" error fond #e4e4e4
 9: "  " | "│ " error fond #e4e4e4 | "  " fond #e4e4e4 | "cadre quand le panneau" text fond #e4e4e4 | " │" error fond #e4e4e4
@@ -903,28 +957,28 @@ P1#0 choisie`,
 11: "  " | "╰─────────────┬────────────╯" error fond #e4e4e4
 12: "                " | "▼" suggestion gras
 13: "  " | "╭" warning fond #e4e4e4 | "──────────────────────────╮" warning fond #e4e4e4
-14: "  " | "│ " warning fond #e4e4e4 | "↺ " warning fond #e4e4e4 gras | "Bornes du pointeur" text fond #e4e4e4 gras | "    " fond #e4e4e4 | " │" warning fond #e4e4e4
+14: "  " | "│ " warning fond #e4e4e4 | "⟲ " warning fond #e4e4e4 gras | "Bornes du pointeur" text fond #e4e4e4 gras | "    " fond #e4e4e4 | " │" warning fond #e4e4e4
 15: "  " | "│ " warning fond #e4e4e4 | "  " fond #e4e4e4 | "corrigées" text fond #e4e4e4 gras | "             " fond #e4e4e4 | " │" warning fond #e4e4e4
 16: "  " | "│ " warning fond #e4e4e4 | "  " fond #e4e4e4 | "Rejoué au vert" text fond #e4e4e4 | "        " fond #e4e4e4 | " │" warning fond #e4e4e4
 17: "  " | "╰──────────────────────────╯" warning fond #e4e4e4`,
   'logigramme · replié, étapes plus haut · historique': `   ┆ 6 étapes plus haut                                 
   ╭────────────────────────────────────────────────────╮
-  │ ↺ Bornes du pointeur corrigées                     │
+  │ ⟲ Bornes du pointeur corrigées                     │
   │   Rejoué au vert                                   │
   ╰──────────────────────────┬─────────────────────────╯
                              ▼
   ╭────────────────────────────────────────────────────╮
-  │ ↺ Nettoyage                                        │
+  │ ⟲ Nettoyage                                        │
   ╰────────────────────────────────────────────────────╯
 ──
 0: "  " | " " | "┆ 6 étapes plus haut" text italique | "                                 "
 1: "  " | "╭" warning | "────────────────────────────────────────────────────╮" warning
-2: "  " | "│ " warning | "↺ " warning gras | "Bornes du pointeur corrigées" text gras | "                    " | " │" warning
+2: "  " | "│ " warning | "⟲ " warning gras | "Bornes du pointeur corrigées" text gras | "                    " | " │" warning
 3: "  " | "│ " warning | "  " | "Rejoué au vert" text | "                                  " | " │" warning
 4: "  " | "╰──────────────────────────┬─────────────────────────╯" warning
 5: "                             " | "▼" suggestion gras
 6: "  " | "╭" warning | "────────────────────────────────────────────────────╮" warning
-7: "  " | "│ " warning | "↺ " warning gras | "Nettoyage" text gras | "                                       " | " │" warning
+7: "  " | "│ " warning | "⟲ " warning gras | "Nettoyage" text gras | "                                       " | " │" warning
 8: "  " | "╰────────────────────────────────────────────────────╯" warning`,
   'logigramme · journal long, résumé en cours, question': `  ┌┄ DÉBRIEFING ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┐
   ┆ ┄ 2 actions plus tôt                               ┆
@@ -985,11 +1039,11 @@ P1#0 choisie`,
   'logigramme · flotte nombreuse, étroite': `  ╔═ ESCADRILLE · revue-u… ══╗
   ║ ⟳ 3 en vol               ║
   ║ ✓ 30 au hangar           ║
-  ║ ✗ 5 perdus               ║
-  ║ ◌ 2 en silence radio     ║
+  ║ × 5 perdus               ║
+  ║ ○ 2 en silence radio     ║
   ║ ● ● ● ● ● ● ● ● ● ● ● ●  ║
   ║ ● ● ● ● ● ● ● ● ● ● ● ●  ║
-  ║ ● ● ● ● ● ● ✗ ✗ ✗ ✗ ✗ ◈  ║
+  ║ ● ● ● ● ● ● × × × × × ◎  ║
   ║ + 4 drones               ║
   ║ ⟳ relecteur 35 · Lit ch… ║
   ║ ⟳ relecteur 36           ║
@@ -999,46 +1053,46 @@ P1#0 choisie`,
 0: "  " | "╔═ " merged fond #1c1c1c | "ESCADRILLE · revue-u…" merged fond #1c1c1c gras | " " merged fond #1c1c1c | "══╗" merged fond #1c1c1c
 1: "  " | "║ " merged fond #1c1c1c | "⟳ 3 en vol" suggestion fond #1c1c1c gras | "              " fond #1c1c1c | " ║" merged fond #1c1c1c
 2: "  " | "║ " merged fond #1c1c1c | "✓ 30 au hangar" success fond #1c1c1c gras | "          " fond #1c1c1c | " ║" merged fond #1c1c1c
-3: "  " | "║ " merged fond #1c1c1c | "✗ 5 perdus" error fond #1c1c1c gras | "              " fond #1c1c1c | " ║" merged fond #1c1c1c
-4: "  " | "║ " merged fond #1c1c1c | "◌ 2 en silence radio" text fond #1c1c1c | "    " fond #1c1c1c | " ║" merged fond #1c1c1c
+3: "  " | "║ " merged fond #1c1c1c | "× 5 perdus" error fond #1c1c1c gras | "              " fond #1c1c1c | " ║" merged fond #1c1c1c
+4: "  " | "║ " merged fond #1c1c1c | "○ 2 en silence radio" text fond #1c1c1c | "    " fond #1c1c1c | " ║" merged fond #1c1c1c
 5: "  " | "║ " merged fond #1c1c1c | "● " success fond #1c1c1c gras | "● " success fond #1c1c1c gras | "● " success fond #1c1c1c gras | "● " success fond #1c1c1c gras | "● " success fond #1c1c1c gras | "● " success fond #1c1c1c gras | "● " success fond #1c1c1c gras | "● " success fond #1c1c1c gras | "● " success fond #1c1c1c gras | "● " success fond #1c1c1c gras | "● " success fond #1c1c1c gras | "● " success fond #1c1c1c gras | " ║" merged fond #1c1c1c
 6: "  " | "║ " merged fond #1c1c1c | "● " success fond #1c1c1c gras | "● " success fond #1c1c1c gras | "● " success fond #1c1c1c gras | "● " success fond #1c1c1c gras | "● " success fond #1c1c1c gras | "● " success fond #1c1c1c gras | "● " success fond #1c1c1c gras | "● " success fond #1c1c1c gras | "● " success fond #1c1c1c gras | "● " success fond #1c1c1c gras | "● " success fond #1c1c1c gras | "● " success fond #1c1c1c gras | " ║" merged fond #1c1c1c
-7: "  " | "║ " merged fond #1c1c1c | "● " success fond #1c1c1c gras | "● " success fond #1c1c1c gras | "● " success fond #1c1c1c gras | "● " success fond #1c1c1c gras | "● " success fond #1c1c1c gras | "● " success fond #1c1c1c gras | "✗ " error fond #1c1c1c gras | "✗ " error fond #1c1c1c gras | "✗ " error fond #1c1c1c gras | "✗ " error fond #1c1c1c gras | "✗ " error fond #1c1c1c gras | "◈ " suggestion fond #1c1c1c gras | " ║" merged fond #1c1c1c
+7: "  " | "║ " merged fond #1c1c1c | "● " success fond #1c1c1c gras | "● " success fond #1c1c1c gras | "● " success fond #1c1c1c gras | "● " success fond #1c1c1c gras | "● " success fond #1c1c1c gras | "● " success fond #1c1c1c gras | "× " error fond #1c1c1c gras | "× " error fond #1c1c1c gras | "× " error fond #1c1c1c gras | "× " error fond #1c1c1c gras | "× " error fond #1c1c1c gras | "◎ " suggestion fond #1c1c1c gras | " ║" merged fond #1c1c1c
 8: "  " | "║ " merged fond #1c1c1c | "+ 4 drones" text fond #1c1c1c | "              " fond #1c1c1c | " ║" merged fond #1c1c1c
 9: "  " | "║ " merged fond #1c1c1c | "⟳ " suggestion fond #1c1c1c gras | "relecteur 35 · Lit ch…" text fond #1c1c1c | " ║" merged fond #1c1c1c
 10: "  " | "║ " merged fond #1c1c1c | "⟳ " suggestion fond #1c1c1c gras | "relecteur 36" text fond #1c1c1c | "          " fond #1c1c1c | " ║" merged fond #1c1c1c
 11: "  " | "║ " merged fond #1c1c1c | "⟳ " suggestion fond #1c1c1c gras | "relecteur 37 · Lance …" text fond #1c1c1c | " ║" merged fond #1c1c1c
 12: "  " | "╚══════════════════════════╝" merged fond #1c1c1c`,
   'logigramme · flotte rentrée · clair': `  ╭─ ESCADRILLE · relecture ───────────────────────────╮
-  │ ⟳ 0 en vol   ✓ 2 au hangar   ✗ 1 perdu             │
-  │ ● ● ✗                                              │
+  │ ⟳ 0 en vol   ✓ 2 au hangar   × 1 perdu             │
+  │ ● ● ×                                              │
   ╰────────────────────────────────────────────────────╯
 ──
 0: "  " | "╭─ " merged fond #e4e4e4 | "ESCADRILLE · relecture" merged fond #e4e4e4 gras | " " merged fond #e4e4e4 | "───────────────────────────╮" merged fond #e4e4e4
-1: "  " | "│ " merged fond #e4e4e4 | "⟳ 0 en vol" subtle fond #e4e4e4 gras | "   " fond #e4e4e4 | "✓ 2 au hangar" success fond #e4e4e4 gras | "   " fond #e4e4e4 | "✗ 1 perdu" error fond #e4e4e4 gras | "            " fond #e4e4e4 | " │" merged fond #e4e4e4
-2: "  " | "│ " merged fond #e4e4e4 | "● " success fond #e4e4e4 gras | "● " success fond #e4e4e4 gras | "✗ " error fond #e4e4e4 gras | "                                            " fond #e4e4e4 | " │" merged fond #e4e4e4
+1: "  " | "│ " merged fond #e4e4e4 | "⟳ 0 en vol" subtle fond #e4e4e4 gras | "   " fond #e4e4e4 | "✓ 2 au hangar" success fond #e4e4e4 gras | "   " fond #e4e4e4 | "× 1 perdu" error fond #e4e4e4 gras | "            " fond #e4e4e4 | " │" merged fond #e4e4e4
+2: "  " | "│ " merged fond #e4e4e4 | "● " success fond #e4e4e4 gras | "● " success fond #e4e4e4 gras | "× " error fond #e4e4e4 gras | "                                            " fond #e4e4e4 | " │" merged fond #e4e4e4
 3: "  " | "╰────────────────────────────────────────────────────╯" merged fond #e4e4e4`,
   'logigramme · flotte, minuscule': `  ╭─ ESCADRILLE… ╮
   │ ⟳ 0 en vol   │
   │ ✓ 1 au hang… │
-  │ ◌ 2 en sile… │
-  │ ◌ ◌ ●        │
+  │ ○ 2 en sile… │
+  │ ○ ○ ●        │
   ╰──────────────╯
 ──
 0: "  " | "╭─ " merged fond #1c1c1c | "ESCADRILLE…" merged fond #1c1c1c gras | " " merged fond #1c1c1c | "╮" merged fond #1c1c1c
 1: "  " | "│ " merged fond #1c1c1c | "⟳ 0 en vol" subtle fond #1c1c1c gras | "  " fond #1c1c1c | " │" merged fond #1c1c1c
 2: "  " | "│ " merged fond #1c1c1c | "✓ 1 au hang…" success fond #1c1c1c gras | " │" merged fond #1c1c1c
-3: "  " | "│ " merged fond #1c1c1c | "◌ 2 en sile…" text fond #1c1c1c | " │" merged fond #1c1c1c
-4: "  " | "│ " merged fond #1c1c1c | "◌ " text fond #1c1c1c | "◌ " text fond #1c1c1c | "● " success fond #1c1c1c gras | "      " fond #1c1c1c | " │" merged fond #1c1c1c
+3: "  " | "│ " merged fond #1c1c1c | "○ 2 en sile…" text fond #1c1c1c | " │" merged fond #1c1c1c
+4: "  " | "│ " merged fond #1c1c1c | "○ " text fond #1c1c1c | "○ " text fond #1c1c1c | "● " success fond #1c1c1c gras | "      " fond #1c1c1c | " │" merged fond #1c1c1c
 5: "  " | "╰──────────────╯" merged fond #1c1c1c`,
   'logigramme · trop court : la plus récente, seule': `   ┆ 4 étapes plus haut                                 
   ╭────────────────────────────────────────────────────╮
-  │ ↺ Nettoyage                                        │
+  │ ⟲ Nettoyage                                        │
   ╰────────────────────────────────────────────────────╯
 ──
 0: "  " | " " fond #121212 | "┆ 4 étapes plus haut" text fond #121212 italique | "                                 " fond #121212
 1: "  " | "╭" warning fond #1c1c1c | "────────────────────────────────────────────────────╮" warning fond #1c1c1c
-2: "  " | "│ " warning fond #1c1c1c | "↺ " warning fond #1c1c1c gras | "Nettoyage" text fond #1c1c1c gras | "                                       " fond #1c1c1c | " │" warning fond #1c1c1c
+2: "  " | "│ " warning fond #1c1c1c | "⟲ " warning fond #1c1c1c gras | "Nettoyage" text fond #1c1c1c gras | "                                       " fond #1c1c1c | " │" warning fond #1c1c1c
 3: "  " | "╰────────────────────────────────────────────────────╯" warning fond #1c1c1c`,
   'logigramme · à la ligne près : tout tient, sans repli': `  ╭────────────────────────────────────────────────────╮
   │ ✓ Lu les hooks du mod                              │
@@ -1076,18 +1130,18 @@ P1#0 choisie`,
   ◇──────────────────────────┬─────────────────────────◇
                              ▼
   ╭────────────────────────────────────────────────────╮
-  │ ✗ Tests du rendu étroit en échec sur trois cas     │ ◀─╮
+  │ × Tests du rendu étroit en échec sur trois cas     │ ◀─╮
   │   Le pointeur sortait du cadre quand le panneau    │   │
   │   rétrécissait                                     │   │
-  ╰──────────────────────────┬─────────────────────────╯   ↺
+  ╰──────────────────────────┬─────────────────────────╯   ⟲
                              ▼                             │
   ╭────────────────────────────────────────────────────╮   │
-  │ ↺ Bornes du pointeur corrigées                     │ ──╯
+  │ ⟲ Bornes du pointeur corrigées                     │ ──╯
   │   Rejoué au vert                                   │
   ╰──────────────────────────┬─────────────────────────╯
                              ▼
   ╭────────────────────────────────────────────────────╮
-  │ ↺ Nettoyage                                        │
+  │ ⟲ Nettoyage                                        │
   ╰──────────────────────────┬─────────────────────────╯
                              ▼
   ╔═ MANŒUVRE ═════════════════════════════════════════╗
@@ -1104,18 +1158,18 @@ P1#0 choisie`,
 7: "  " | "◇──────────────────────────┬─────────────────────────◇" suggestion fond #e4e4e4
 8: "                             " | "▼" suggestion gras
 9: "  " | "╭" error fond #e4e4e4 | "────────────────────────────────────────────────────╮" error fond #e4e4e4
-10: "  " | "│ " error fond #e4e4e4 | "✗ " error fond #e4e4e4 gras | "Tests du rendu étroit en échec sur trois cas" text fond #e4e4e4 gras | "    " fond #e4e4e4 | " │" error fond #e4e4e4 | " ◀─╮" warning gras
+10: "  " | "│ " error fond #e4e4e4 | "× " error fond #e4e4e4 gras | "Tests du rendu étroit en échec sur trois cas" text fond #e4e4e4 gras | "    " fond #e4e4e4 | " │" error fond #e4e4e4 | " ◀─╮" warning gras
 11: "  " | "│ " error fond #e4e4e4 | "  " fond #e4e4e4 | "Le pointeur sortait du cadre quand le panneau" text fond #e4e4e4 | "   " fond #e4e4e4 | " │" error fond #e4e4e4 | "   │" warning gras
 12: "  " | "│ " error fond #e4e4e4 | "  " fond #e4e4e4 | "rétrécissait" text fond #e4e4e4 | "                                    " fond #e4e4e4 | " │" error fond #e4e4e4 | "   │" warning gras
-13: "  " | "╰──────────────────────────┬─────────────────────────╯" error fond #e4e4e4 | "   ↺" warning gras
+13: "  " | "╰──────────────────────────┬─────────────────────────╯" error fond #e4e4e4 | "   ⟲" warning gras
 14: "                             " | "▼" suggestion gras | "                          " | "   │" warning gras
 15: "  " | "╭" warning fond #e4e4e4 | "────────────────────────────────────────────────────╮" warning fond #e4e4e4 | "   │" warning gras
-16: "  " | "│ " warning fond #e4e4e4 | "↺ " warning fond #e4e4e4 gras | "Bornes du pointeur corrigées" text fond #e4e4e4 gras | "                    " fond #e4e4e4 | " │" warning fond #e4e4e4 | " ──╯" warning gras
+16: "  " | "│ " warning fond #e4e4e4 | "⟲ " warning fond #e4e4e4 gras | "Bornes du pointeur corrigées" text fond #e4e4e4 gras | "                    " fond #e4e4e4 | " │" warning fond #e4e4e4 | " ──╯" warning gras
 17: "  " | "│ " warning fond #e4e4e4 | "  " fond #e4e4e4 | "Rejoué au vert" text fond #e4e4e4 | "                                  " fond #e4e4e4 | " │" warning fond #e4e4e4
 18: "  " | "╰──────────────────────────┬─────────────────────────╯" warning fond #e4e4e4
 19: "                             " | "▼" suggestion gras
 20: "  " | "╭" warning fond #e4e4e4 | "────────────────────────────────────────────────────╮" warning fond #e4e4e4
-21: "  " | "│ " warning fond #e4e4e4 | "↺ " warning fond #e4e4e4 gras | "Nettoyage" text fond #e4e4e4 gras | "                                       " fond #e4e4e4 | " │" warning fond #e4e4e4
+21: "  " | "│ " warning fond #e4e4e4 | "⟲ " warning fond #e4e4e4 gras | "Nettoyage" text fond #e4e4e4 gras | "                                       " fond #e4e4e4 | " │" warning fond #e4e4e4
 22: "  " | "╰──────────────────────────┬─────────────────────────╯" warning fond #e4e4e4
 23: "                             " | "▼" suggestion gras
 24: "  " | "╔═ " suggestion fond #dadada | "MANŒUVRE" suggestion fond #dadada gras | " " suggestion fond #dadada | "═════════════════════════════════════════╗" suggestion fond #dadada
@@ -1138,40 +1192,40 @@ P1#0 choisie`,
 2: "  " | "│ " success fond #1c1c1c | "  " fond #1c1c1c | "Comprendre le rendu du panneau" text fond #1c1c1c | "                  " fond #1c1c1c | " │" success fond #1c1c1c
 3: "  " | "╰────────────────────────────────────────────────────╯" success fond #1c1c1c`,
   'logigramme · quarante colonnes, la boucle tient': `  ╭────────────────────────────────╮
-  │ ✗ Tests du rendu étroit en     │ ◀─╮
+  │ × Tests du rendu étroit en     │ ◀─╮
   │   échec sur trois cas          │   │
   │   Le pointeur sortait du cadre │   │
   │   quand le panneau             │   │
-  │   rétrécissait                 │   ↺
+  │   rétrécissait                 │   ⟲
   ╰────────────────┬───────────────╯   │
                    ▼                   │
   ╭────────────────────────────────╮   │
-  │ ↺ Bornes du pointeur corrigées │ ──╯
+  │ ⟲ Bornes du pointeur corrigées │ ──╯
   │   Rejoué au vert               │
   ╰────────────────────────────────╯
 ──
 0: "  " | "╭" error fond #1c1c1c | "────────────────────────────────╮" error fond #1c1c1c
-1: "  " | "│ " error fond #1c1c1c | "✗ " error fond #1c1c1c gras | "Tests du rendu étroit en" text fond #1c1c1c gras | "    " fond #1c1c1c | " │" error fond #1c1c1c | " ◀─╮" warning gras
+1: "  " | "│ " error fond #1c1c1c | "× " error fond #1c1c1c gras | "Tests du rendu étroit en" text fond #1c1c1c gras | "    " fond #1c1c1c | " │" error fond #1c1c1c | " ◀─╮" warning gras
 2: "  " | "│ " error fond #1c1c1c | "  " fond #1c1c1c | "échec sur trois cas" text fond #1c1c1c gras | "         " fond #1c1c1c | " │" error fond #1c1c1c | "   │" warning gras
 3: "  " | "│ " error fond #1c1c1c | "  " fond #1c1c1c | "Le pointeur sortait du cadre" text fond #1c1c1c | " │" error fond #1c1c1c | "   │" warning gras
 4: "  " | "│ " error fond #1c1c1c | "  " fond #1c1c1c | "quand le panneau" text fond #1c1c1c | "            " fond #1c1c1c | " │" error fond #1c1c1c | "   │" warning gras
-5: "  " | "│ " error fond #1c1c1c | "  " fond #1c1c1c | "rétrécissait" text fond #1c1c1c | "                " fond #1c1c1c | " │" error fond #1c1c1c | "   ↺" warning gras
+5: "  " | "│ " error fond #1c1c1c | "  " fond #1c1c1c | "rétrécissait" text fond #1c1c1c | "                " fond #1c1c1c | " │" error fond #1c1c1c | "   ⟲" warning gras
 6: "  " | "╰────────────────┬───────────────╯" error fond #1c1c1c | "   │" warning gras
 7: "                   " | "▼" suggestion gras | "                " | "   │" warning gras
 8: "  " | "╭" warning fond #1c1c1c | "────────────────────────────────╮" warning fond #1c1c1c | "   │" warning gras
-9: "  " | "│ " warning fond #1c1c1c | "↺ " warning fond #1c1c1c gras | "Bornes du pointeur corrigées" text fond #1c1c1c gras | " │" warning fond #1c1c1c | " ──╯" warning gras
+9: "  " | "│ " warning fond #1c1c1c | "⟲ " warning fond #1c1c1c gras | "Bornes du pointeur corrigées" text fond #1c1c1c gras | " │" warning fond #1c1c1c | " ──╯" warning gras
 10: "  " | "│ " warning fond #1c1c1c | "  " fond #1c1c1c | "Rejoué au vert" text fond #1c1c1c | "              " fond #1c1c1c | " │" warning fond #1c1c1c
 11: "  " | "╰────────────────────────────────╯" warning fond #1c1c1c`,
   'logigramme · compteurs de flotte pile à la largeur': `  ╔═ ESCADRILLE · pile ════════╗
   ║ ⟳ 2 en vol   ✓ 1 au hangar ║
-  ║ ◈ ◈ ●                      ║
+  ║ ◎ ◎ ●                      ║
   ║ ⟳ relecteur 0              ║
   ║ ⟳ relecteur 1              ║
   ╚════════════════════════════╝
 ──
 0: "  " | "╔═ " merged fond #1c1c1c | "ESCADRILLE · pile" merged fond #1c1c1c gras | " " merged fond #1c1c1c | "════════╗" merged fond #1c1c1c
 1: "  " | "║ " merged fond #1c1c1c | "⟳ 2 en vol" suggestion fond #1c1c1c gras | "   " fond #1c1c1c | "✓ 1 au hangar" success fond #1c1c1c gras | " ║" merged fond #1c1c1c
-2: "  " | "║ " merged fond #1c1c1c | "◈ " suggestion fond #1c1c1c gras | "◈ " suggestion fond #1c1c1c gras | "● " success fond #1c1c1c gras | "                    " fond #1c1c1c | " ║" merged fond #1c1c1c
+2: "  " | "║ " merged fond #1c1c1c | "◎ " suggestion fond #1c1c1c gras | "◎ " suggestion fond #1c1c1c gras | "● " success fond #1c1c1c gras | "                    " fond #1c1c1c | " ║" merged fond #1c1c1c
 3: "  " | "║ " merged fond #1c1c1c | "⟳ " suggestion fond #1c1c1c gras | "relecteur 0" text fond #1c1c1c | "             " fond #1c1c1c | " ║" merged fond #1c1c1c
 4: "  " | "║ " merged fond #1c1c1c | "⟳ " suggestion fond #1c1c1c gras | "relecteur 1" text fond #1c1c1c | "             " fond #1c1c1c | " ║" merged fond #1c1c1c
 5: "  " | "╚════════════════════════════╝" merged fond #1c1c1c`,
@@ -1205,7 +1259,7 @@ P1#0 choisie`,
 6: "  " | "╰──────────────────────────╯" merged fond #1c1c1c`,
   'logigramme · cinq drones en vol, les trois derniers nommés': `  ╔═ ESCADRILLE · cinq ════════════════════════════════╗
   ║ ⟳ 5 en vol   ✓ 0 au hangar                         ║
-  ║ ◈ ◈ ◈ ◈ ◈                                          ║
+  ║ ◎ ◎ ◎ ◎ ◎                                          ║
   ║ ⟳ relecteur 2 · tâche 2                            ║
   ║ ⟳ relecteur 3 · tâche 3                            ║
   ║ ⟳ relecteur 4 · tâche 4                            ║
@@ -1213,7 +1267,7 @@ P1#0 choisie`,
 ──
 0: "  " | "╔═ " merged fond #1c1c1c | "ESCADRILLE · cinq" merged fond #1c1c1c gras | " " merged fond #1c1c1c | "════════════════════════════════╗" merged fond #1c1c1c
 1: "  " | "║ " merged fond #1c1c1c | "⟳ 5 en vol" suggestion fond #1c1c1c gras | "   " fond #1c1c1c | "✓ 0 au hangar" success fond #1c1c1c gras | "                        " fond #1c1c1c | " ║" merged fond #1c1c1c
-2: "  " | "║ " merged fond #1c1c1c | "◈ " suggestion fond #1c1c1c gras | "◈ " suggestion fond #1c1c1c gras | "◈ " suggestion fond #1c1c1c gras | "◈ " suggestion fond #1c1c1c gras | "◈ " suggestion fond #1c1c1c gras | "                                        " fond #1c1c1c | " ║" merged fond #1c1c1c
+2: "  " | "║ " merged fond #1c1c1c | "◎ " suggestion fond #1c1c1c gras | "◎ " suggestion fond #1c1c1c gras | "◎ " suggestion fond #1c1c1c gras | "◎ " suggestion fond #1c1c1c gras | "◎ " suggestion fond #1c1c1c gras | "                                        " fond #1c1c1c | " ║" merged fond #1c1c1c
 3: "  " | "║ " merged fond #1c1c1c | "⟳ " suggestion fond #1c1c1c gras | "relecteur 2 · tâche 2" text fond #1c1c1c | "                           " fond #1c1c1c | " ║" merged fond #1c1c1c
 4: "  " | "║ " merged fond #1c1c1c | "⟳ " suggestion fond #1c1c1c gras | "relecteur 3 · tâche 3" text fond #1c1c1c | "                           " fond #1c1c1c | " ║" merged fond #1c1c1c
 5: "  " | "║ " merged fond #1c1c1c | "⟳ " suggestion fond #1c1c1c gras | "relecteur 4 · tâche 4" text fond #1c1c1c | "                           " fond #1c1c1c | " ║" merged fond #1c1c1c

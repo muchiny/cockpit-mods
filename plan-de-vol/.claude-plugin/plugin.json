@@ -1,6 +1,6 @@
 {
   "name": "plan-de-vol",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Panneau latéral « plan de vol » : logigramme de la session (prompts, étapes, pourquoi) dans le style cockpit de status-band",
   "types": "./types/index.d.ts"
 }

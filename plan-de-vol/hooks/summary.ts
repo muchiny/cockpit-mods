@@ -181,11 +181,14 @@ export function appendSteps(mission: Mission, added: readonly Step[], summarized
 
 export type PlanChange = (plan: Plan) => Plan
 
-export function newMission(id: number, prompt: string, lines: readonly string[] = []): Mission {
-  const kept = Array.from(prompt).slice(0, PROMPT_MAX).join('')
+// What a mission keeps of its prompt.
+function keptPrompt(prompt: string): string {
+  return Array.from(prompt).slice(0, PROMPT_MAX).join('')
+}
 
+export function newMission(id: number, prompt: string, lines: readonly string[] = []): Mission {
   return addLines(
-    { id, prompt: kept, title: null, steps: [], earlier: 0, waiting: null, journal: [], logged: 0, summarized: 0, attempted: 0 },
+    { id, prompt: keptPrompt(prompt), title: null, steps: [], earlier: 0, waiting: null, journal: [], logged: 0, summarized: 0, attempted: 0 },
     lines,
   )
 }
@@ -246,6 +249,21 @@ export function rowLines(row: SessionMessage): string[] {
   ]
 }
 
+// The missions a transcript gives a plan that starts on a session under
+// way, each with the journal the live hooks would have written. With no
+// mission yet, its newest prompts; after a saved plan's last mission, the
+// prompts that came since, numbered after it: none when the transcript does
+// not hold that mission's prompt (a command's, a compacted one), so nothing
+// saved is ever doubled.
+export function later(last: Mission | undefined, rows: readonly SessionMessage[], max: number): Mission[] {
+  const groups = groupsOf(rows)
+  const at = last === undefined ? -1 : groups.findLastIndex(g => keptPrompt(g.prompt) === last.prompt)
+  const tail = (last !== undefined && at < 0 ? [] : groups.slice(at + 1)).slice(-max)
+  const first = last === undefined ? 0 : last.id + 1
+
+  return tail.map((g, i) => newMission(first + i, g.prompt, rows.slice(g.start + 1, tail[i + 1]?.start ?? rows.length).flatMap(rowLines)))
+}
+
 function drawn(mission: Mission): string {
   const older = mission.earlier > 0 ? `(${mission.earlier} étapes plus anciennes)\n` : ''
   const steps = mission.steps.map(s => `- [${s.kind}] ${s.what} — ${s.why}`).join('\n')
@@ -281,7 +299,8 @@ export function batchPrompt(objective: string | null, missions: readonly Mission
   return [`Objectif connu : ${objective ?? 'aucun'}`, ...parts].join('\n\n')
 }
 
-function object(value: unknown): Record<string, unknown> {
+// A JSON value's fields: none for one that is no object.
+export function object(value: unknown): Record<string, unknown> {
   return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : {}
 }
 

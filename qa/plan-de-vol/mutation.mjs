@@ -35,7 +35,7 @@ const HERE = dirname(fileURLToPath(import.meta.url))
 const MOD = resolve(HERE, '../../plan-de-vol')
 const WORK = '/var/tmp/plan-de-vol-qa/mutation'
 const OUT = join(HERE, 'mutation')
-const FILES = ['text.ts', 'fleet.ts', 'summary.ts', 'chart.ts', 'warp.tsx', 'register.tsx']
+const FILES = ['text.ts', 'fleet.ts', 'summary.ts', 'chart.ts', 'logbook.ts', 'warp.tsx', 'register.tsx']
 const TIMEOUT_MS = 120_000
 // Sous ce seuil de RAM libre, rien ne démarre (chaque copie en prend ~1 Go au pic).
 const MIN_FREE_MB = 8 * 1024

@@ -24,9 +24,10 @@ de démarrer sous 8 Go de RAM libre.
 ## Dessins approuvés
 
 `tests/scenes.ts` rend le panneau (monté dans le moteur), le logigramme, la
-route, le bandeau, l'en-tête warp image par image et les prompts envoyés à
-Haiku ; chaque scène est écrite en clair, puis segment par segment avec son
-style (couleur, fond, gras, italique). `tests/render.test.ts` compare chacune
+route, le bandeau, l'en-tête warp image par image, les prompts envoyés à
+Haiku et le journal de bord que `/plan-de-vol export` écrit (du Markdown, tel
+quel) ; chaque scène dessinée est écrite en clair, puis segment par segment
+avec son style (couleur, fond, gras, italique). `tests/render.test.ts` compare chacune
 à `tests/golden.ts`. Un changement voulu du dessin : `node golden.mjs`, puis
 relire le diff de `tests/golden.ts` avant de le garder ; un changement que
 personne n'a voulu est un bogue.

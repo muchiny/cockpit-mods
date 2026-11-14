@@ -100,6 +100,17 @@ export function isSilent(drone: Drone, now: number): boolean {
   return drone.status === 'running' && now - drone.seenAt > STALE_MS
 }
 
+// A squadron's count, as its card and the logbook say it: the drones in
+// flight, and how many are back, lost, silent.
+export function tally(squadron: Squadron, now: number): { flying: Drone[]; back: number; lost: number; silent: number } {
+  return {
+    flying: squadron.drones.filter(d => d.status === 'running' && !isSilent(d, now)),
+    back: squadron.drones.filter(d => d.status === 'done').length,
+    lost: squadron.drones.filter(d => d.status === 'failed').length,
+    silent: squadron.drones.filter(d => isSilent(d, now)).length,
+  }
+}
+
 // Any drone not known to have landed, in flight or silent: what the engine
 // may know more of.
 export function hasRunning(fleet: Fleet): boolean {

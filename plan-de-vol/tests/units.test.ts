@@ -406,8 +406,8 @@ test('a fleet card counts its drones and names the ones flying', () => {
   const lines = chart({ squadrons }).map(text)
 
   expect(lines.some(line => line.includes('ESCADRILLE · review-changes'))).toBe(true)
-  expect(lines.some(line => line.includes('⟳ 1 en vol') && line.includes('✓ 1 au hangar ') && line.includes('✗ 1 perdu '))).toBe(true)
-  expect(lines.some(line => line.includes('◌ 1 en silence radio'))).toBe(true)
+  expect(lines.some(line => line.includes('⟳ 1 en vol') && line.includes('✓ 1 au hangar ') && line.includes('× 1 perdu '))).toBe(true)
+  expect(lines.some(line => line.includes('○ 1 en silence radio'))).toBe(true)
   expect(lines.some(line => line.includes('review:bugs · Lu foo.rs'))).toBe(true)
 })
 

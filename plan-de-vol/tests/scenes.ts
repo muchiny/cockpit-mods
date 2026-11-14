@@ -1,6 +1,8 @@
 import { band, flowchart, objectiveRow, route } from '../hooks/chart'
 import type { FlowchartArgs, Row, Seg } from '../hooks/chart'
 import { STALE_MS } from '../hooks/fleet'
+import { markdown } from '../hooks/logbook'
+import type { Logbook } from '../hooks/logbook'
 import { SYSTEM_BATCH, SYSTEM_INCREMENT, batchPrompt, incrementPrompt, logOf, newMission, textLine, toolLine } from '../hooks/summary'
 import Warp from '../hooks/warp'
 import type { Drone, DroneStatus, Live, Mission, Squadron, Step } from '../types'
@@ -75,6 +77,20 @@ function chart(over: Partial<FlowchartArgs>): string {
       ...over,
     }),
   )
+}
+
+// The Markdown logbook /plan-de-vol export writes.
+function logbook(over: Partial<Logbook>): string {
+  return markdown({
+    plan: { epoch: 0, objective: null, missions: [], pending: [] },
+    live: IDLE,
+    fleet: { squadrons: [] },
+    now: NOW,
+    when: '2026-11-14 02:42',
+    sessionId: '1c0ffee5-0a1b-4c2d-8e3f-5a6b7c8d9e0f',
+    cwd: '/home/pilote/projet',
+    ...over,
+  })
 }
 
 function track(count: number, chosen: number, l: Live, look: FlowchartArgs['look'], w: number, newest: Partial<Mission> = {}): string {
@@ -245,6 +261,29 @@ export const SCENES: Record<string, Scene> = {
   'haiku · lot de trois, un journal trop long': () =>
     batchPrompt(null, [mission(0, 'court', {}, [toolLine('Lu a.ts')]), mission(1, 'long', { steps: STEPS.slice(3) }, longLog(6000)), mission(2, 'muet')]),
   'haiku · lot d’un seul, au-delà du plancher': () => batchPrompt('Objectif', [mission(0, 'seul', {}, longLog(1000))]),
+
+  'journal de bord · chaque nature d’étape, journal brut, escadrille, la personne attendue': () =>
+    logbook({
+      plan: {
+        epoch: 0,
+        objective: 'Construire plan-de-vol',
+        pending: [],
+        missions: [
+          mission(0, PROMPT, { title: 'Logigramme de session', steps: STEPS, earlier: 3 }),
+          mission(1, 'ajoute un export\nen Markdown', { waiting: 'Valider la maquette' }, [textLine('Je regarde le rendu') ?? '', toolLine('Lu chart.ts')]),
+        ],
+      },
+      fleet: {
+        squadrons: [
+          squadron('revue-ultracode', [drone(0, 'running', { action: 'Lu chart.ts' }), drone(1, 'done'), drone(2, 'failed'), drone(3, 'running', { seenAt: 0 })]),
+        ],
+      },
+    }),
+  'journal de bord · au travail, sans objectif': () =>
+    logbook({
+      plan: { epoch: 0, objective: null, pending: [], missions: [mission(0, 'fais un mod')] },
+      live: { ...IDLE, isWorking: true, action: 'Edit chart.ts' },
+    }),
 
   'objectif · aucun prompt · sans verre': () => drawn([objectiveRow(null, false, 'plain', 50)]),
   'objectif · en analyse · sombre': () => drawn([objectiveRow(null, true, 'dark', 50)]),

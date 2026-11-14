@@ -6,8 +6,8 @@ français, empruntés au vol spatial et à Star Citizen.
 
 | Mod | Ce qu'il fait |
 |---|---|
-| [`status-band`](status-band/) | Cockpit au-dessus du prompt : étoiles animées, saut quantique pendant le travail, onze instruments (vaisseau, nav et git, bouclier, carburant 5 h/7 j, chrono, systèmes, escadrille, crédits, soute, contrats, heure), compactés puis paginés selon la largeur. |
-| [`plan-de-vol`](plan-de-vol/) | Panneau latéral : le logigramme de la session (prompts, étapes, pourquoi), ouvert par `/plan-de-vol [transparent\|gris]`. |
+| [`status-band`](status-band/) | Cockpit au-dessus du prompt : étoiles animées, saut quantique pendant le travail, onze instruments (vaisseau, nav et git du projet travaillé, bouclier, carburant avec compte à rebours et rythme, chrono, systèmes, escadrille, crédits, soute, contrats, heure), compactés puis paginés selon la largeur. |
+| [`plan-de-vol`](plan-de-vol/) | Panneau latéral : le logigramme de la session (prompts, étapes, pourquoi), ouvert par `/plan-de-vol [transparent\|gris]`, écrit en Markdown par `/plan-de-vol export [chemin]`. |
 
 À savoir avant d'installer :
 
@@ -16,8 +16,35 @@ français, empruntés au vol spatial et à Star Citizen.
   [`.github/workflows/ci.yml`](.github/workflows/ci.yml) (`CLAUDE_CODE_VERSION`).
 - `plan-de-vol` fait résumer les étapes par Haiku : ces appels sont comptés
   sur le compte de la personne qui l'utilise.
+- `/plan-de-vol export` écrit le plan de vol en Markdown, pour une passation :
+  l'objectif, puis chaque contrat avec son prompt, ses étapes et leur
+  pourquoi, ce qui n'est pas encore résumé et ses escadrilles. Sans chemin, le
+  fichier va dans `~/.claude/plan-de-vol/`, jamais dans le dossier de travail.
+  Panneau fermé, rien n'est résumé : l'export donne alors le journal brut des
+  derniers prompts.
+- Tant que son panneau est affiché, une session garde une copie de son plan
+  dans le store du mod (les 12 plus récentes sont gardées). À la reprise, le
+  plan repart de cette copie, sans rien redemander à Haiku ; seuls les prompts
+  tapés depuis sont relus dans le transcript.
 - La jauge SOUTE de `status-band` lit `/proc/meminfo` : elle ne s'affiche que
   sous Linux et WSL.
+- CARBURANT montre la fenêtre que le compte a (5 h, 7 j ou les deux), son
+  compte à rebours, et dit si le rythme tenu depuis l'ouverture de la fenêtre
+  mène jusqu'à la remise à zéro (`tient`) ou non (`à sec` dans tant de temps).
+  C'est une extrapolation linéaire, muette pendant le premier vingtième de la
+  fenêtre.
+- CRÉDITS montre, sur un forfait à fenêtre hebdomadaire, la part de la semaine
+  que la session a prise ; sans cette fenêtre (clé API), des dollars. La part
+  est une estimation : le coût est propre à la session, le pourcentage est
+  celui du compte entier, et c'est un registre tenu dans le store du mod,
+  partagé entre les sessions de la machine, qui donne ce que vaut un dollar.
+  Ce qui est dépensé ailleurs (autre machine, claude.ai) la gonfle, sans
+  jamais dépasser ce que le compte entier a consommé.
+- Les sessions de la machine se passent l'état des fenêtres par le store :
+  CARBURANT est rempli dès le lancement, avant la première réponse, et une
+  session au repos suit ce que lisent celles qui travaillent.
+- NAV montre le dépôt du dossier de la session ; lancée hors de tout dépôt,
+  celui du dernier fichier que Claude a lu ou écrit.
 
 ## Installer
 
@@ -76,8 +103,9 @@ node coverage.mjs                 # couverture 100 % sur les quatre axes
 `tsc` et ESLint lisent les types du moteur (`<mod>/.claude-plugin/types/`),
 que Claude Code écrit quand une session charge le mod : charger le mod une fois
 avant de les lancer. Le mutation testing (`node mutation.mjs` dans chaque
-banc) est à part, long, et prévu pour Linux : copies de travail dans
-`/var/tmp`, 8 Go de RAM libre exigés. Le détail du banc de plan-de-vol, ses
+banc) est à part, long, et prévu pour Linux : copies de travail sur disque
+(`/var/tmp` pour plan-de-vol, `qa/status-band/.mutation` pour status-band),
+8 Go de RAM libre exigés. Le détail du banc de plan-de-vol, ses
 exclusions et ses mutants équivalents sont dans
 [`qa/plan-de-vol/README.md`](qa/plan-de-vol/README.md).
 

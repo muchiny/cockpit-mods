@@ -7,11 +7,17 @@ type Engine = Parameters<TestBody>[0]
 
 const NOW = Date.UTC(2026, 9, 29, 13, 32)
 const MINUTE = 60_000
+const HOUR = 60 * MINUTE
+// The week resets on the hour, 4 days 4 h 28 min from now: 67 h 32 min of
+// its 168 have run. The ledger names a week by that moment.
+const WEEK_RESET = Date.UTC(2026, 10, 2, 18)
+const WEEK = WEEK_RESET
+const DAYS_7 = 168 * HOUR
 
-// With these figures, all 11 panels on one row at full size need 250
-// columns; the squeezed row 204 (full titles), then 193 (short titles).
+// With these figures, all 11 panels on one row at full size need 259
+// columns; the squeezed row 207 (full titles), then 198 (short titles).
 // Each panel keeps room for the values it can grow to, hence the margin.
-const WIDE = 260
+const WIDE = 280
 const NARROW = 100
 
 const POOL = ['NAV', 'CARBURANT', 'SYSTÈMES', 'CHRONO', 'ESCADRILLE', 'CRÉDITS', 'SOUTE', 'CONTRATS', 'HEURE']
@@ -57,11 +63,19 @@ type Options = {
   sevenDayUsed?: number
   // The session's model and folder: null when the engine cannot say.
   model?: string | null
-  cwd?: string | null
+  cwd?: string | null | (() => string)
   turns?: () => number | Promise<number>
-  // The repository's `git status`: null outside any repository, a rejection
-  // for a repository too slow to answer.
-  git?: () => string | null | Promise<string | null>
+  // The `git status` of the repository the folder is in: null outside any
+  // repository, a rejection for a repository too slow to answer.
+  git?: (cwd: string) => string | null | Promise<string | null>
+  // What `git rev-parse` says of a folder, its work tree then the directory
+  // its repository keeps: null outside any repository, a rejection when slow,
+  // `failed` for what it printed before it failed.
+  tree?: (cwd: string) => string | null | { failed: string } | Promise<string | null>
+  // The session's id, and what the mod's store holds at the start.
+  sessionId?: () => string
+  store?: Record<string, unknown>
+  isStoreDown?: () => boolean
   // What `date +%H:%M` prints: null when it fails, a throw when it cannot run.
   time?: () => string | null
   // /proc/meminfo, or a throw when it cannot be read.
@@ -74,7 +88,22 @@ type Options = {
   isUsageDown?: () => boolean
 }
 
+// The account the band was first flown on: a weekly window alone.
+function weekly(used: number, resetsAt = WEEK_RESET) {
+  return (usual: SessionUsage): SessionUsage => ({
+    ...usual,
+    rateLimits: [{ kind: 'seven_day', percentUsed: used, resetsAt: new Date(resetsAt).toISOString() }],
+  })
+}
+
 // A promise the test settles when it chooses.
+// A session before its first response: the engine has heard of no window.
+const unheard = (usual: SessionUsage): SessionUsage => ({ ...usual, rateLimits: [] })
+// The weekly window as a session leaves it in the store.
+const left = (used: number, resetsAt: number) => [
+  { kind: 'seven_day', percentUsed: used, resetsAt: new Date(resetsAt).toISOString() },
+]
+
 function gate(): { promise: Promise<void>; release: () => void } {
   let release: () => void = () => undefined
   const promise = new Promise<void>(resolve => {
@@ -102,6 +131,12 @@ function engine(
     cwd = '/home/muchini/projet',
     turns = () => 12,
     git = () => GIT_STATUS,
+    tree = () => null,
+    sessionId = () => 's1',
+    // A dollar is worth half a percent of the week, and the session had
+    // spent 2.84 $ of it at its last reading, when its cost stood at 1.4242 $.
+    store = { 'rate-1': 0.5, 'week-1:s1': { week: WEEK, from: 36, to: 36, spent: 2.84, usd: 1.4242 } },
+    isStoreDown = () => false,
     time = () => '14:32',
     meminfo = () => `MemTotal: 24000000 kB\nMemAvailable:   ${ramKb} kB\n`,
     agents = () => SQUADRON,
@@ -111,6 +146,24 @@ function engine(
   }: Options = {},
 ) {
   const clock = mock.clock(on, { now: NOW })
+  // The mod's store, as JSON keeps it; `writes` records each key set.
+  const held = new Map(Object.entries(store))
+  const writes: string[] = []
+  on('store.get', (_, e) => {
+    if (isStoreDown()) throw new Error('store unavailable')
+    return { value: held.get(e.key) }
+  })
+  on('store.set', (_, e) => {
+    writes.push(e.key)
+    held.set(e.key, JSON.parse(JSON.stringify(e.value)))
+    return { value: undefined }
+  })
+  on('store.delete', (_, e) => {
+    held.delete(e.key)
+    return { value: undefined }
+  })
+  on('store.keys', () => ({ value: [...held.keys()] }))
+  on('session.id', () => ({ value: sessionId() }))
   const runs: { argv: string[]; init: ProcessRunInit | undefined }[] = []
   on('session.model', () => {
     if (model === null) throw new Error('model unavailable')
@@ -118,7 +171,7 @@ function engine(
   })
   on('session.cwd', () => {
     if (cwd === null) throw new Error('cwd unavailable')
-    return { value: cwd }
+    return { value: typeof cwd === 'function' ? cwd() : cwd }
   })
   on('session.turns', async () => ({ value: await turns() }))
   on('session.usage', () => {
@@ -130,7 +183,7 @@ function engine(
         context: { window: 200_000, tokens: 46_000, percent: contextPercent },
         rateLimits: [
           { kind: 'five_hour', percentUsed: fiveHourUsed, resetsAt: new Date(NOW + 133 * MINUTE).toISOString() },
-          { kind: 'seven_day', percentUsed: sevenDayUsed },
+          { kind: 'seven_day', percentUsed: sevenDayUsed, resetsAt: new Date(WEEK_RESET).toISOString() },
         ],
         cost: { usd: cost() },
       }),
@@ -143,14 +196,17 @@ function engine(
       const shown = time()
       return { value: shown === null ? ran(1, '', 'date: failed') : ran(0, `${shown}\n`) }
     }
-    const status = await git()
+    const cwd = e.init?.cwd ?? ''
+    const out = await (e.argv[1] === 'rev-parse' ? tree(cwd) : git(cwd))
+    if (out !== null && typeof out === 'object') return { value: ran(129, out.failed, 'error: unknown option') }
 
-    return { value: status === null ? ran(128, '', 'fatal: not a git repository') : ran(0, status) }
+    return { value: out === null ? ran(128, '', 'fatal: not a git repository') : ran(0, out) }
   })
   on('fs.read', () => ({ value: meminfo() }))
   on('session.start', (_, e) => ({ cwd: e.cwd }))
+  on('session.end', (_, e) => ({ sessionId: e.sessionId }))
 
-  return { clock, runs }
+  return { clock, runs, held, writes }
 }
 
 async function start($: Engine, clock: MockClock) {
@@ -365,7 +421,7 @@ test('a repository too slow to answer keeps its last known state', async ($, on)
   isSlow = true
   await clock.advance(15_000)
   const ui = await cockpit($, WIDE)
-  expect(await shows(ui, 'projet : main ✎ 3')).toBe(true)
+  expect(await shows(ui, 'projet : main ± 3')).toBe(true)
   await ui.unmount()
 })
 
@@ -409,7 +465,7 @@ test('secondary readings stay legible, not faded', async ($, on) => {
   await start($, clock)
   const ui = await cockpit($, WIDE)
 
-  for (const word of ['$', 'contrats', '46k/200k', '↻', '2h13', '7J', 'veille']) {
+  for (const word of ['contrats', '46k/200k', '⟳', '2h13', '7J', 'veille']) {
     const found = await run(ui, word)
     expect({ word, color: found?.props.color, isDim: found?.props.dimColor ?? false }).toEqual({ word, color: 'text', isDim: false })
   }
@@ -504,13 +560,13 @@ test('a wide terminal shows all eleven panels on one row, full size', async ($, 
 
   for (const part of [
     'VAISSEAU', 'OPUS 5.5',
-    'NAV', 'projet', 'main', '✎ 3', '↑2', '↓1',
+    'NAV', 'projet', 'main', '± 3', '↑2', '↓1',
     'BOUCLIER', '77%', '46k/200k',
-    'CARBURANT', '88%', '↻ 2h13', '7J', '64%',
+    'CARBURANT', '88%', '⟳ 2h13', '7J', '64%', 'tient',
     'CHRONO', '1h12', 'T+--:--',
     'SYSTÈMES', '×0',
     'ESCADRILLE', '1 en vol',
-    'CRÉDITS', '1.42 $',
+    'CRÉDITS', '1.4% 7J',
     'SOUTE', '14.2 Go',
     'CONTRATS', '12 contrats',
     'HEURE', '14:32',
@@ -530,7 +586,8 @@ test('a terminal a little too narrow squeezes the row instead of hiding panels',
     expect({ title, isShown: await shows(ui, title) }).toEqual({ title, isShown: true })
   }
   // Squeezed: the decorations go first.
-  expect(await shows(ui, '$')).toBe(false)
+  expect(await shows(ui, 'EN ORBITE')).toBe(false)
+  expect(await shows(ui, 'tient')).toBe(false)
   expect(await shows(ui, '●')).toBe(false)
   await ui.unmount()
 })
@@ -538,7 +595,7 @@ test('a terminal a little too narrow squeezes the row instead of hiding panels',
 test('narrower still, the titles shorten before anything is hidden', async ($, on) => {
   const { clock } = engine(on)
   await start($, clock)
-  const ui = await cockpit($, 196)
+  const ui = await cockpit($, 200)
 
   for (const title of ['VSO', 'NAV', 'BCL', 'CRB', 'CHR', 'SYS', 'ESC', 'CRD', 'STE', 'CTR']) {
     expect({ title, isShown: await shows(ui, title) }).toEqual({ title, isShown: true })
@@ -549,7 +606,7 @@ test('narrower still, the titles shorten before anything is hidden', async ($, o
 
 async function stage(ui: Mounted): Promise<string> {
   if (await shows(ui, '●')) return 'pages'
-  if (await shows(ui, '$')) return 'full'
+  if (await shows(ui, 'EN ORBITE')) return 'full'
   return (await shows(ui, 'BCL')) ? 'short titles' : 'squeezed'
 }
 
@@ -557,12 +614,12 @@ test('each squeeze starts only once the step before no longer fits', async ($, o
   const { clock } = engine(on)
   await start($, clock)
   const steps: [number, string][] = [
-    [248, 'full'],
-    [247, 'squeezed'],
-    [203, 'squeezed'],
-    [202, 'short titles'],
-    [194, 'short titles'],
-    [193, 'pages'],
+    [259, 'full'],
+    [258, 'squeezed'],
+    [207, 'squeezed'],
+    [206, 'short titles'],
+    [198, 'short titles'],
+    [197, 'pages'],
   ]
 
   for (const [columns, expected] of steps) {
@@ -646,10 +703,10 @@ test('too narrow for the page dots, the pages turn without them', async ($, on) 
 
   for (let page = 0; page < 6; page++) {
     expect(await shows(ui, '●')).toBe(false)
-    for (const value of ['1 en vol', '1.42', '14.2 Go', '12 ctr']) if (await shows(ui, value)) seen.add(value)
+    for (const value of ['1 en vol', '1.4%', '14.2 Go', '12 ctr']) if (await shows(ui, value)) seen.add(value)
     await ui.advance(5000)
   }
-  expect([...seen].sort()).toEqual(['1 en vol', '1.42', '12 ctr', '14.2 Go'])
+  expect([...seen].sort()).toEqual(['1 en vol', '1.4%', '12 ctr', '14.2 Go'])
   await ui.unmount()
 })
 
@@ -659,7 +716,7 @@ test('a clean, detached checkout shows as such, nothing ahead or behind', async 
   const ui = await cockpit($, WIDE)
 
   expect(await shows(ui, 'projet : détaché ✓')).toBe(true)
-  for (const mark of ['✎', '↑', '↓']) {
+  for (const mark of ['±', '↑', '↓']) {
     expect({ mark, isShown: await shows(ui, mark) }).toEqual({ mark, isShown: false })
   }
   await ui.unmount()
@@ -761,14 +818,14 @@ test('the running tool shows while it runs, then counts', async ($, on) => {
   // The bookkeeping runs beside the tool, not ahead of it.
   await clock.settle()
   const running = await cockpit($, WIDE)
-  expect(await shows(running, '▸ Bash')).toBe(true)
+  expect(await shows(running, '► Bash')).toBe(true)
   await running.unmount()
 
   tool.release()
   await call
   const done = await cockpit($, WIDE)
   expect(await shows(done, '×1')).toBe(true)
-  expect(await shows(done, '▸ Bash')).toBe(false)
+  expect(await shows(done, '► Bash')).toBe(false)
   await done.unmount()
 })
 
@@ -801,7 +858,7 @@ test('no cell paints a background or a fixed color, at any width', async ($, on)
   const { clock } = engine(on, { contextPercent: 85 })
   await start($, clock)
 
-  for (const columns of [WIDE, 248, 220, 203, 202, 196, 192, 191, NARROW, 60]) {
+  for (const columns of [WIDE, 259, 258, 220, 207, 206, 198, 197, NARROW, 60]) {
     const ui = await cockpit($, columns, { isWorking: true })
     await ui.advance(1000)
     const texts = await ui.findAll({ type: 'Text', in: 'cockpit' })
@@ -1063,7 +1120,7 @@ test('a long tool name is cut short, its server left out', async ($, on) => {
   const call = $.tool.call({ tool: 'mcp__github__pull_request_review_write', tool_use_id: 'tu1' })
   await clock.settle()
   const ui = await cockpit($, WIDE)
-  expect(await reading(ui, 'SYSTÈMES')).toBe('▸ pull_re… ×1')
+  expect(await reading(ui, 'SYSTÈMES')).toBe('► pull_re… ×1')
   await ui.unmount()
   tool.release()
   await call
@@ -1085,7 +1142,7 @@ test('a session at the filesystem root shows /', async ($, on) => {
   await start($, clock)
   const ui = await cockpit($, WIDE)
 
-  expect(await reading(ui, 'NAV')).toBe('/ : main ✎ 3 ↑2↓1')
+  expect(await reading(ui, 'NAV')).toBe('/ : main ± 3 ↑2↓1')
   await ui.unmount()
 })
 
@@ -1136,14 +1193,14 @@ test('the rate limits read the same in any order', async ($, on) => {
   await start($, clock)
   const ui = await cockpit($, WIDE)
 
-  expect(await reading(ui, 'CARBURANT')).toMatch(/ 88% ↻ 2h13 7J [█▏▎▍▌▋▊▉░]+ {2}64%$/)
+  expect(await reading(ui, 'CARBURANT')).toMatch(/ 88% ⟳ 2h13 7J [█▏▎▍▌▋▊▉░]+ {2}64% tient$/)
   await ui.unmount()
 })
 
 for (const [ab, changes, shown] of [
   ['+12 -34', '', 'projet : main ✓ ↑12↓34'],
   ['+3 -0', '', 'projet : main ✓ ↑3'],
-  ['+0 -2', '\n? notes.txt', 'projet : main ✎ 1 ↓2'],
+  ['+0 -2', '\n? notes.txt', 'projet : main ± 1 ↓2'],
 ] as const) {
   test(`a branch at ${ab} reads ${shown}`, async ($, on) => {
     const { clock } = engine(on, { git: () => `# branch.oid 0123abc\n# branch.head main\n# branch.ab ${ab}${changes}` })
@@ -1224,6 +1281,7 @@ test("the band's hooks hand back what the engine answered", async ($, on) => {
   expect(await $.turn.complete({ ...complete, turnId: 't1' })).toEqual({ text: 't1' })
   expect(await $.turn.complete({ ...complete, turnId: 's1', agentId: 'a1' })).toEqual({ text: 's1' })
   expect(await $.tool.call({ tool: 'Bash', tool_use_id: 'tu1', command: 'ls' })).toEqual({ result: { stdout: 'ok' } })
+  expect(await $.session.end({ reason: 'other', sessionId: 's1', resume: { id: 's1' } })).toEqual({ sessionId: 's1' })
   const stream = $.turn.step({ turnId: 't1', index: 0, model: 'claude-opus-5-5', messageCount: 1 })
   let next = await stream.next()
   while (!next.done) next = await stream.next()
@@ -1288,7 +1346,8 @@ test('a turn that completes refreshes the readings without waiting for the poll'
   await $.turn.complete({ turnId: 't1', reason: 'answer', answer: '', durationMs: 10, isAborted: false })
   await clock.settle()
   const ui = await cockpit($, WIDE)
-  expect(await reading(ui, 'CRÉDITS')).toBe('¤ 2.50 $')
+  // 1.0758 $ more, at half a percent of the week a dollar.
+  expect(await reading(ui, 'CRÉDITS')).toBe('¤ 2.0% 7J')
   await ui.unmount()
 })
 
@@ -1310,7 +1369,7 @@ test('of two tools running at once, the one still running shows once the other e
   gates.get('tu2')?.release()
   await bash
   const one = await cockpit($, WIDE)
-  expect(await reading(one, 'SYSTÈMES')).toBe('▸ Read ×2')
+  expect(await reading(one, 'SYSTÈMES')).toBe('► Read ×2')
   await one.unmount()
 
   gates.get('tu1')?.release()
@@ -1422,13 +1481,9 @@ for (const [reserve, options] of [
     await start($, clock)
     const ui = await cockpit($, NARROW)
 
-    const pages: boolean[] = []
-    for (let page = 0; page < 6; page++) {
-      pages.push((await reading(ui, 'CARBURANT')) !== '')
-      await ui.advance(5000)
-    }
-    expect(pages).toContain(false)
-    expect(pages).toContain(true)
+    const shown = (await pages(ui, 6)).map(page => page.includes('CARBURANT'))
+    expect(shown).toContain(false)
+    expect(shown).toContain(true)
     await ui.unmount()
   })
 }
@@ -1451,6 +1506,9 @@ for (const [tokens, shown] of [
 for (const [minutes, shown] of [
   [59, '59m'],
   [60, '1h00'],
+  [1439, '23h59'],
+  [1440, '1j00'],
+  [1501, '1j01'],
 ] as const) {
   test(`a session ${minutes} minutes old reads ${shown}`, async ($, on) => {
     const { clock } = engine(on, { usage: usual => ({ ...usual, startedAt: NOW - minutes * MINUTE }) })
@@ -1470,7 +1528,7 @@ test('the reset countdown rounds up, to the minute it ends in', async ($, on) =>
   await start($, clock)
   const ui = await cockpit($, WIDE)
 
-  expect(await reading(ui, 'CARBURANT')).toMatch(/ ↻ 2h13$/)
+  expect(await reading(ui, 'CARBURANT')).toMatch(/ ⟳ 2h13 tient$/)
   await ui.unmount()
 })
 
@@ -1519,6 +1577,8 @@ for (const [alert, options, isAlert] of [
   ['the five-hour reserve at 20 %', { fiveHourUsed: 80 }, false],
   ['the weekly reserve below 20 %', { sevenDayUsed: 85 }, true],
   ['the weekly reserve at 20 %', { sevenDayUsed: 80 }, false],
+  ['a weekly reserve alone below 20 %', { usage: weekly(85) }, true],
+  ['a weekly reserve alone at 20 %', { usage: weekly(80) }, false],
   ['below 4 Go free', { ramKb: 4095 * 1024 }, true],
   ['at 4 Go free', { ramKb: 4096 * 1024 }, false],
   [
@@ -1549,8 +1609,9 @@ test('while a page slides in, the cockpit draws every frame', async ($, on) => {
   await ui.advance(4720)
 
   // 4960 ms at rest; from 5040 ms the page moves on every frame, in place by
-  // 5280 ms (5360 ms draws it again, unmoved); then a frame in three, 5520 ms.
-  expect(await redraws(ui, 9)).toEqual([false, true, true, true, true, false, false, true, false])
+  // 5280 ms (5360 ms draws it once more, a star a cell on); then a frame in
+  // three, 5520 ms.
+  expect(await redraws(ui, 9)).toEqual([false, true, true, true, true, true, false, true, false])
   await ui.unmount()
 })
 
@@ -1564,12 +1625,12 @@ test('reference: at rest, a new page sliding in, its dot lit', async ($, on) => 
   await ui.advance(5040)
 
   expect(await frame(ui)).toEqual([
-    ' ╭── VAISSEAU ──╮╭─────── BOUCLIER ────────╮ •      +  ╭──────── CARBURANT ────────╮╭── SYSTÈMES ───',
-    ' aaa AAAAAAAA aaaaaaaaaaa AAAAAAAA aaaaaaaaa s      A  aaaaaaaaa AAAAAAAAA aaaaaaaaaaaa AAAAAAAA aaa',
-    ' │   OPUS 5.5   ││ ██████▏░  77%  46k/200k │   ○●○○    │ ████▍  88% ↻ 2h13 7J  64% ││  · veille ×0  ',
-    ' a   TTTT TTT   aa ggggggg.  TTT  tttttttt a   iAii    a ggggg  TTT t tttt tt  TTT aa  t tttttt tt  ',
-    ' ╰──────────────╯╰─────────────────────────╯           ╰───────────────────────────╯╰───────────────',
-    ' aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa           aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+    ' ╭── VAISSEAU ──╮╭─────── BOUCLIER ────────╮ •    ··            ·   ╭────────── CARBURANT ──────────',
+    ' aaa AAAAAAAA aaaaaaaaaaa AAAAAAAA aaaaaaaaa s    ..            .   aaaaaaaaaaa AAAAAAAAA aaaaaaaaaa',
+    ' │   OPUS 5.5   ││ ██████▏░  77%  46k/200k │  +*     ○●○○○    ·   · │   ████▍  88% ⟳ 2h13 7J  64%   ',
+    ' a   TTTT TTT   aa ggggggg.  TTT  tttttttt a  AT     iAiii    .   . a   ggggg  TTT t tttt tt  TTT   ',
+    ' ╰──────────────╯╰─────────────────────────╯  ·   ·•       ·•       ╰───────────────────────────────',
+    ' aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa  .   .s       .s       aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
   ])
   await ui.unmount()
 })
@@ -1581,21 +1642,21 @@ test('reference: going to warp, the stars draw out into trails', async ($, on) =
 
   await ui.advance(240)
   expect(await frame(ui)).toEqual([
-    ' ╭── VAISSEAU ──╮╭─────── BOUCLIER ────────╮        ╌╌ •╌        ·      ╭────────── NAV ──────────╮ ',
-    ' aaa AAAAAAAA aaaaaaaaaaa AAAAAAAA aaaaaaaaa        ;; s,        .      aaaaaaaaaaa AAA aaaaaaaaaaa ',
-    ' │   OPUS 5.5   ││ ██████▏░  77%  46k/200k │   ●○○○   *─╌+╌   *·╌╌ ·    │ projet : main ✎ 3 ↑2↓1  │ ',
-    ' a   TTTT TTT   aa ggggggg.  TTT  tttttttt a   Aiii   Tt;A,   T.;; .    a TTTTTT s aaaa w w aaww  a ',
-    ' ╰──────────────╯╰─────────────────────────╯ *       •╌     ··*•╌*─╌╌·  ╰─────────────────────────╯ ',
-    ' aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa T       s,     ..Ts,Tt;;.  aaaaaaaaaaaaaaaaaaaaaaaaaaa ',
+    ' ╭── VAISSEAU ──╮╭─────── BOUCLIER ────────╮   •╌ *·             ·      ╭────────── NAV ──────────╮ ',
+    ' aaa AAAAAAAA aaaaaaaaaaa AAAAAAAA aaaaaaaaa   s, T.             .      aaaaaaaaaaa AAA aaaaaaaaaaa ',
+    ' │   OPUS 5.5   ││ ██████▏░  77%  46k/200k │  •╌ •╌  ●○○○○    *·╌╌ ·    │ projet : main ± 3 ↑2↓1  │ ',
+    ' a   TTTT TTT   aa ggggggg.  TTT  tttttttt a  s, s,  Aiiii    T.;; .    a TTTTTT s aaaa w w aaww  a ',
+    ' ╰──────────────╯╰─────────────────────────╯ *─╌╌ ·         ··*•╌*─╌╌·  ╰─────────────────────────╯ ',
+    ' aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa Tt;; .         ..Ts,Tt;;.  aaaaaaaaaaaaaaaaaaaaaaaaaaa ',
   ])
   await ui.advance(800)
   expect(await frame(ui)).toEqual([
-    ' ╭── VAISSEAU ──╮╭─────── BOUCLIER ────────╮ ╌      ━───╌╌╌ ─╌  ━────╌╌ ╭────────── NAV ──────────╮ ',
-    ' aaa AAAAAAAA aaaaaaaaaaa AAAAAAAA aaaaaaaaa ,      Tttt;;; i.  Ttssi.; aaaaaaaaaaa AAA aaaaaaaaaaa ',
-    ' │ OPUS 5.5 »»  ││ ██████▏░  77%  46k/200k │ ─ ●○○○ ━───╌╌─╌  ─╌ ━───━─ │ projet : main ✎ 3 ↑2↓1  │ ',
-    ' a TTTT TTT AA  aa ggggggg.  TTT  tttttttt a s Aiii Tttt;;i.  i. TtttTt a TTTTTT s aaaa w w aaww  a ',
-    ' ╰──────────────╯╰─────────────────────────╯ ╌      ─╌╌╌─╌ ──╌╌ ─╌      ╰─────────────────────────╯ ',
-    ' aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa ;      s,,.i. ss,, i.      aaaaaaaaaaaaaaaaaaaaaaaaaaa ',
+    ' ╭── VAISSEAU ──╮╭─────── BOUCLIER ────────╮ ╌─╌            ─╌  ━────╌╌ ╭────────── NAV ──────────╮ ',
+    ' aaa AAAAAAAA aaaaaaaaaaa AAAAAAAA aaaaaaaaa ,i.            i.  Ttssi.; aaaaaaaaaaa AAA aaaaaaaaaaa ',
+    ' │ OPUS 5.5 »»  ││ ██████▏░  77%  46k/200k │ ──╌╌    ●○○○○ ╌  ─╌ ━───━─ │ projet : main ± 3 ↑2↓1  │ ',
+    ' a TTTT TTT AA  aa ggggggg.  TTT  tttttttt a ss,,    Aiiii .  i. TtttTt a TTTTTT s aaaa w w aaww  a ',
+    ' ╰──────────────╯╰─────────────────────────╯ ╌╌╌   ─       ──╌╌ ─╌      ╰─────────────────────────╯ ',
+    ' aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa ;;;   s       ss,, i.      aaaaaaaaaaaaaaaaaaaaaaaaaaa ',
   ])
   await ui.unmount()
 })
@@ -1607,12 +1668,12 @@ test('reference: the full row, the shield and the hold in alert', async ($, on) 
   await ui.advance(40)
 
   expect(await frame(ui)).toEqual([
-    ' ╭────── VAISSEAU ───────╮ ╭────────── NAV ──────────╮ ╭─── SYSTÈMES ────╮ ╭─ ESCADRILLE ─╮ ╭── CONTRATS ──╮  ·                 ╭─────────── BOUCLIER ────────────╮ ╭──────────── CARBURANT ────────────╮ ╭──── CHRONO ────╮ ╭─ CRÉDITS ──╮ ╭─ SOUTE ─╮ ╭─ HEURE ─╮ ',
-    ' aaaaaaa AAAAAAAA aaaaaaaa aaaaaaaaaaa AAA aaaaaaaaaaa aaaa AAAAAAAA aaaaa aa AAAAAAAAAA aa aaa AAAAAAAA aaa  .                 eeeeeeeeeeee AAAAAAAA eeeeeeeeeeeee aaaaaaaaaaaaa AAAAAAAAA aaaaaaaaaaaaa aaaaa AAAAAA aaaaa aa AAAAAAA aaa ee AAAAA ee aa AAAAA aa ',
-    ' │  OPUS 5.5  EN ORBITE  │ │ projet : main ✎ 3 ↑2↓1  │ │   · veille ×0   │ │   1 en vol   │ │ 12 contrats  │   ·                │ ██▍░░░░░░░░░░░░░  15%  46k/200k │ │ ███████░  88% ↻ 2h13 7J ██▌░  64% │ │ 1h12  T+--:--  │ │  ¤ 1.42 $  │ │ 2.9 Go  │ │  14:32  │ ',
-    ' a  TTTT TTT  tt tttttt  a a TTTTTT s aaaa w w aaww  a a   t tttttt tt   a a   A AA AAA   a a TT tttttttt  a   .                e eee.............  TTT  tttttttt e a ggggggg.  TTT t tttt tt ggg.  TTT a a TTTT  iiiiiii  a a  A TTTT t  a e EEE EE  e a  TTTTT  a ',
-    ' ╰───────────────────────╯ ╰─────────────────────────╯ ╰─────────────────╯ ╰──────────────╯ ╰──────────────╯                  · ╰─────────────────────────────────╯ ╰───────────────────────────────────╯ ╰────────────────╯ ╰────────────╯ ╰─────────╯ ╰─────────╯ ',
-    ' aaaaaaaaaaaaaaaaaaaaaaaaa aaaaaaaaaaaaaaaaaaaaaaaaaaa aaaaaaaaaaaaaaaaaaa aaaaaaaaaaaaaaaa aaaaaaaaaaaaaaaa                  . eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa aaaaaaaaaaaaaaaaaa aaaaaaaaaaaaaa eeeeeeeeeee aaaaaaaaaaa ',
+    ' ╭────── VAISSEAU ───────╮ ╭────────── NAV ──────────╮ ╭─── SYSTÈMES ────╮ ╭─ ESCADRILLE ─╮ ╭── CONTRATS ──╮ *        ·                  ╭─────────── BOUCLIER ────────────╮ ╭───────────────── CARBURANT ──────────────────╮ ╭──── CHRONO ────╮ ╭─ CRÉDITS ──╮ ╭─ SOUTE ─╮ ╭─ HEURE ─╮ ',
+    ' aaaaaaa AAAAAAAA aaaaaaaa aaaaaaaaaaa AAA aaaaaaaaaaa aaaa AAAAAAAA aaaaa aa AAAAAAAAAA aa aaa AAAAAAAA aaa T        .                  eeeeeeeeeeee AAAAAAAA eeeeeeeeeeeee aaaaaaaaaaaaaaaaaa AAAAAAAAA aaaaaaaaaaaaaaaaaaa aaaaa AAAAAA aaaaa aa AAAAAAA aaa ee AAAAA ee aa AAAAA aa ',
+    ' │  OPUS 5.5  EN ORBITE  │ │ projet : main ± 3 ↑2↓1  │ │   · veille ×0   │ │   1 en vol   │ │ 12 contrats  │  *         ·                │ ██▍░░░░░░░░░░░░░  15%  46k/200k │ │   ███████░  88% ⟳ 2h13 7J ██▌░  64% tient    │ │ 1h12  T+--:--  │ │ ¤ 1.4% 7J  │ │ 2.9 Go  │ │  14:32  │ ',
+    ' a  TTTT TTT  tt tttttt  a a TTTTTT s aaaa w w aaww  a a   t tttttt tt   a a   A AA AAA   a a TT tttttttt  a  T         .                e eee.............  TTT  tttttttt e a   ggggggg.  TTT t tttt tt ggg.  TTT ggggg    a a TTTT  iiiiiii  a a A TTTT tt  a e EEE EE  e a  TTTTT  a ',
+    ' ╰───────────────────────╯ ╰─────────────────────────╯ ╰─────────────────╯ ╰──────────────╯ ╰──────────────╯                             ╰─────────────────────────────────╯ ╰──────────────────────────────────────────────╯ ╰────────────────╯ ╰────────────╯ ╰─────────╯ ╰─────────╯ ',
+    ' aaaaaaaaaaaaaaaaaaaaaaaaa aaaaaaaaaaaaaaaaaaaaaaaaaaa aaaaaaaaaaaaaaaaaaa aaaaaaaaaaaaaaaa aaaaaaaaaaaaaaaa                             eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa aaaaaaaaaaaaaaaaaa aaaaaaaaaaaaaa eeeeeeeeeee aaaaaaaaaaa ',
   ])
   await ui.unmount()
 })
@@ -1640,7 +1701,7 @@ test('a branch with changes, nothing ahead or behind, reads centered', async ($,
   const ui = await cockpit($, WIDE)
 
   const [, middle = ''] = await rows(ui)
-  expect(middle).toContain('│    projet : main ✎ 3    │')
+  expect(middle).toContain('│    projet : main ± 3    │')
   await ui.unmount()
 })
 
@@ -1683,7 +1744,7 @@ test('a tool name just as long as its room reads whole', async ($, on) => {
   const call = $.tool.call({ tool: 'WebFetch', tool_use_id: 'tu1', url: 'https://example.com', prompt: 'read' })
   await clock.settle()
   const ui = await cockpit($, WIDE)
-  expect(await reading(ui, 'SYSTÈMES')).toBe('▸ WebFetch ×1')
+  expect(await reading(ui, 'SYSTÈMES')).toBe('► WebFetch ×1')
   await ui.unmount()
   tool.release()
   await call
@@ -1753,22 +1814,33 @@ test('a request at the effort already shown writes nothing', async ($, on) => {
 })
 
 // The pages each width shows, the first again at the end: the turn comes
-// round. Narrow terminals take the short titles; below 84 columns the dots
+// round. Narrow terminals take the short titles; below 87 columns the dots
 // give way; at 70 the widest panels find no page; at 40, the ship gives way.
 for (const [columns, book] of [
   [40, ['BCL H']],
   [56, ['VSO BCL H']],
   [70, ['VSO BCL SYS', 'VSO BCL CHR', 'VSO BCL ESC', 'VSO BCL CRD STE', 'VSO BCL CTR H']],
+  [86, ['VSO BCL NAV', 'VSO BCL CRB', 'VSO BCL SYS CHR', 'VSO BCL ESC CRD STE', 'VSO BCL CTR H']],
   [
-    84,
+    87,
     [
-      'VAISSEAU BOUCLIER NAV ●○○○○○○',
-      'VAISSEAU BOUCLIER CARBURANT ○●○○○○○',
-      'VAISSEAU BOUCLIER SYSTÈMES ○○●○○○○',
-      'VAISSEAU BOUCLIER CHRONO ○○○●○○○',
-      'VAISSEAU BOUCLIER ESCADRILLE CRÉDITS ○○○○●○○',
-      'VAISSEAU BOUCLIER SOUTE CONTRATS ○○○○○●○',
-      'VAISSEAU BOUCLIER HEURE ○○○○○○●',
+      'VSO BCL NAV ●○○○○○',
+      'VSO BCL CRB ○●○○○○',
+      'VSO BCL SYS ○○●○○○',
+      'VSO BCL CHR ESC ○○○●○○',
+      'VSO BCL CRD STE ○○○○●○',
+      'VSO BCL CTR H ○○○○○●',
+    ],
+  ],
+  [
+    88,
+    [
+      'VAISSEAU BOUCLIER NAV ●○○○○○',
+      'VAISSEAU BOUCLIER CARBURANT ○●○○○○',
+      'VAISSEAU BOUCLIER SYSTÈMES ○○●○○○',
+      'VAISSEAU BOUCLIER CHRONO ESCADRILLE ○○○●○○',
+      'VAISSEAU BOUCLIER CRÉDITS SOUTE ○○○○●○',
+      'VAISSEAU BOUCLIER CONTRATS HEURE ○○○○○●',
     ],
   ],
   [
@@ -1819,7 +1891,7 @@ test('a page slides in eased, a step on every frame', async ($, on) => {
     starts.push(top.indexOf('╭', top.indexOf('BOUCLIER')))
   }
   const place = starts[starts.length - 1] ?? 0
-  expect(starts.map(x => x - place)).toEqual([20, 6, 1, 0, 0])
+  expect(starts.map(x => x - place)).toEqual([17, 5, 1, 0, 0])
   await ui.unmount()
 })
 
@@ -1876,4 +1948,1002 @@ test('a panel in alert is never left out where the short titles keep it', async 
     expect({ columns, isShown }).toEqual({ columns, isShown: true })
     await ui.unmount()
   }
+})
+
+const GAUGE = '[█▏▎▍▌▋▊▉░]'
+
+test('a weekly window alone shows its reserve, its countdown and when it runs dry', async ($, on) => {
+  // 64 % burnt in 67 h 32 min: the 36 % left last 37 h 59 min more, short of the reset.
+  const { clock } = engine(on, { usage: weekly(64) })
+  await start($, clock)
+  const ui = await cockpit($, WIDE)
+
+  expect(await reading(ui, 'CARBURANT')).toMatch(new RegExp(`^7J ${GAUGE}{8} {2}36% ⟳ 4j04 à sec 1j13$`))
+  expect((await run(ui, '1j13'))?.props.color).toBe('warning')
+  await ui.unmount()
+})
+
+test('a weekly window that holds to its reset says so', async ($, on) => {
+  const { clock } = engine(on, { usage: weekly(36) })
+  await start($, clock)
+  const ui = await cockpit($, WIDE)
+
+  expect(await reading(ui, 'CARBURANT')).toMatch(new RegExp(`^7J ${GAUGE}{8} {2}64% ⟳ 4j04 tient$`))
+  expect((await run(ui, 'tient'))?.props.color).toBe('success')
+  await ui.unmount()
+})
+
+for (const [pace, used, shown] of [
+  ['short of its reset shows when it runs dry in place of the countdown', 64, '36% à sec 1j13'],
+  ['holding to its reset keeps the countdown, and says no more', 36, '64% ⟳ 4j04'],
+] as const) {
+  test(`squeezed, a tank ${pace}`, async ($, on) => {
+    const { clock } = engine(on, { usage: weekly(used) })
+    await start($, clock)
+    const ui = await cockpit($, 220)
+
+    expect(await reading(ui, 'CARBURANT')).toMatch(new RegExp(`^7J ${GAUGE}{5} {2}${shown}$`))
+    await ui.unmount()
+  })
+}
+
+for (const [which, options, shown] of [
+  ['the week alone runs short, the week', { sevenDayUsed: 90 }, 'à sec 7h30'],
+  ['both run short, the one dry first', { fiveHourUsed: 85, sevenDayUsed: 90 }, 'à sec 29m'],
+] as const) {
+  test(`with two windows, when ${which} speaks`, async ($, on) => {
+    const { clock } = engine(on, options)
+    await start($, clock)
+    const ui = await cockpit($, WIDE)
+
+    expect(await reading(ui, 'CARBURANT')).toMatch(new RegExp(` ⟳ 2h13 7J ${GAUGE}{4} {2}10% ${shown}$`))
+    await ui.unmount()
+  })
+}
+
+test('squeezed, with two windows, the dry time takes the place of the five-hour countdown', async ($, on) => {
+  const { clock } = engine(on, { sevenDayUsed: 90 })
+  await start($, clock)
+  const ui = await cockpit($, 220)
+
+  expect(await reading(ui, 'CARBURANT')).toMatch(/ 88% à sec 7h30 7J {2}10%$/)
+  await ui.unmount()
+})
+
+// 8 h 24 min is a twentieth of the week.
+for (const [age, left, shown] of [
+  ['a minute short of a twentieth of its window says nothing of its pace', 159 * HOUR + 37 * MINUTE, '98% ⟳ 6j15'],
+  ['just a twentieth into its window tells its pace', 159 * HOUR + 36 * MINUTE, '98% ⟳ 6j15 tient'],
+  ['due to reset this instant still tells its pace', 0, '98% ⟳ 0m tient'],
+  ['whose reset is past says nothing of its pace', -MINUTE, '98% ⟳ 0m'],
+] as const) {
+  test(`a tank ${age}`, async ($, on) => {
+    const { clock } = engine(on, { usage: weekly(2, NOW + left) })
+    await start($, clock)
+    const ui = await cockpit($, WIDE)
+
+    expect(await reading(ui, 'CARBURANT')).toMatch(new RegExp(` ${shown}$`))
+    await ui.unmount()
+  })
+}
+
+test('a tank that would run dry at the very moment it resets holds', async ($, on) => {
+  // Half burnt at half the week.
+  const { clock } = engine(on, { usage: weekly(50, NOW + 84 * HOUR) })
+  await start($, clock)
+  const ui = await cockpit($, WIDE)
+
+  expect(await reading(ui, 'CARBURANT')).toMatch(/ 50% ⟳ 3j12 tient$/)
+  await ui.unmount()
+})
+
+test('a tank nothing was burnt from holds', async ($, on) => {
+  const { clock } = engine(on, { usage: weekly(0) })
+  await start($, clock)
+  const ui = await cockpit($, WIDE)
+
+  expect(await reading(ui, 'CARBURANT')).toBe('7J ████████ 100% ⟳ 4j04 tient')
+  await ui.unmount()
+})
+
+test('a weekly window that does not say when it resets shows its reserve alone', async ($, on) => {
+  const { clock } = engine(on, { usage: usual => ({ ...usual, rateLimits: [{ kind: 'seven_day', percentUsed: 36 }] }) })
+  await start($, clock)
+  const ui = await cockpit($, WIDE)
+
+  expect(await reading(ui, 'CARBURANT')).toMatch(new RegExp(`^7J ${GAUGE}{8} {2}64%$`))
+  await ui.unmount()
+})
+
+test('a reset time that is no date is left out', async ($, on) => {
+  const { clock } = engine(on, { usage: usual => ({ ...usual, rateLimits: [{ kind: 'seven_day', percentUsed: 36, resetsAt: 'soon' }] }) })
+  await start($, clock)
+  const ui = await cockpit($, WIDE)
+
+  expect(await reading(ui, 'CARBURANT')).toMatch(new RegExp(`^7J ${GAUGE}{8} {2}64%$`))
+  await ui.unmount()
+})
+
+test('on a weekly allowance, the credits read what the session took of the week', async ($, on) => {
+  const { clock } = engine(on)
+  await start($, clock)
+
+  const full = await cockpit($, WIDE)
+  expect(await reading(full, 'CRÉDITS')).toBe('¤ 1.4% 7J')
+  await full.unmount()
+  const squeezed = await cockpit($, 220)
+  expect(await reading(squeezed, 'CRÉDITS')).toBe('¤ 1.4%')
+  await squeezed.unmount()
+})
+
+test('off a weekly allowance, the credits read in dollars', async ($, on) => {
+  const { clock } = engine(on, { usage: usual => ({ ...usual, rateLimits: [{ kind: 'five_hour', percentUsed: 40 }] }) })
+  await start($, clock)
+
+  const full = await cockpit($, WIDE)
+  expect(await reading(full, 'CRÉDITS')).toBe('¤ 1.42 $')
+  await full.unmount()
+  const squeezed = await cockpit($, 220)
+  expect(await reading(squeezed, 'CRÉDITS')).toBe('¤ 1.42')
+  await squeezed.unmount()
+})
+
+test("before a dollar's worth of the week is known, the credits show dashes and the session opens its entry", async ($, on) => {
+  const { clock, held } = engine(on, { store: {} })
+  await start($, clock)
+  const ui = await cockpit($, WIDE)
+
+  expect(await reading(ui, 'CRÉDITS')).toBe('¤ --')
+  expect(held.get('week-1:s1')).toEqual({ week: WEEK, from: 36, to: 36, spent: 0, usd: 1.4242 })
+  await ui.unmount()
+})
+
+for (const [why, usage] of [
+  ['a cost', (usual: SessionUsage): SessionUsage => ({ ...usual, cost: undefined })],
+  ['the time it resets', (usual: SessionUsage): SessionUsage => ({ ...usual, rateLimits: [{ kind: 'seven_day', percentUsed: 36 }] })],
+] as const) {
+  test(`a weekly allowance without ${why} shows dashes for credits`, async ($, on) => {
+    const { clock } = engine(on, { usage })
+    await start($, clock)
+    const ui = await cockpit($, WIDE)
+
+    expect(await reading(ui, 'CRÉDITS')).toBe('¤ --')
+    await ui.unmount()
+  })
+}
+
+test("a dollar's worth is how far the week moved over what every session spent meanwhile", async ($, on) => {
+  // From 28 % to 36 % while two sessions spent 8 $: a point a dollar.
+  const { clock, held } = engine(on, {
+    store: {
+      'rate-1': 0.5,
+      'week-1:s1': { week: WEEK, from: 30, to: 33, spent: 2, usd: 1.4242 },
+      'week-1:s2': { week: WEEK, from: 28, to: 35, spent: 6, usd: 9 },
+    },
+  })
+  await start($, clock)
+  const ui = await cockpit($, WIDE)
+
+  expect(await reading(ui, 'CRÉDITS')).toBe('¤ 2.0% 7J')
+  expect(held.get('rate-1')).toBe(1)
+  expect(held.get('week-1:s1')).toEqual({ week: WEEK, from: 30, to: 36, spent: 2, usd: 1.4242 })
+  await ui.unmount()
+})
+
+test('entries of a past week are dropped, those of a week to come left alone, neither counted', async ($, on) => {
+  const other = { from: 0, to: 90, spent: 100, usd: 100 }
+  const { clock, held } = engine(on, {
+    store: {
+      'rate-1': 0.5,
+      'week-1:s1': { week: WEEK, from: 36, to: 36, spent: 2.84, usd: 1.4242 },
+      'week-1:old': { ...other, week: WEEK - DAYS_7 },
+      'week-1:next': { ...other, week: WEEK + DAYS_7 },
+    },
+  })
+  await start($, clock)
+  const ui = await cockpit($, WIDE)
+
+  expect(await reading(ui, 'CRÉDITS')).toBe('¤ 1.4% 7J')
+  expect([...held.keys()]).toEqual(['rate-1', 'week-1:s1', 'week-1:next', 'limits-1'])
+  await ui.unmount()
+})
+
+test('what the store holds that is no entry of the ledger is passed over', async ($, on) => {
+  const { clock, held } = engine(on, {
+    store: {
+      'rate-1': 0.5,
+      'week-1:s1': { week: WEEK, from: 36, to: 36, spent: 2.84, usd: 1.4242 },
+      'week-1:empty': null,
+      'week-1:text': 'entry',
+      'week-1:short': { week: WEEK, from: 0, to: 90, spent: 100 },
+      'other:s9': { week: WEEK, from: 0, to: 90, spent: 100, usd: 100 },
+    },
+  })
+  await start($, clock)
+  const ui = await cockpit($, WIDE)
+
+  expect(await reading(ui, 'CRÉDITS')).toBe('¤ 1.4% 7J')
+  // The six it held, and the windows the session left.
+  expect(held.size).toBe(7)
+  await ui.unmount()
+})
+
+for (const [moved, from, shown] of [
+  ['a whole point is enough to tell: 4 $ for it, a quarter point a dollar', 35, '¤ 1.0% 7J'],
+  ['less than a point is not: the last worth stands', 35.1, '¤ 2.0% 7J'],
+] as const) {
+  test(`a week that moved ${moved}`, async ($, on) => {
+    const { clock } = engine(on, {
+      store: { 'rate-1': 0.5, 'week-1:s1': { week: WEEK, from, to: 36, spent: 4, usd: 1.4242 } },
+    })
+    await start($, clock)
+    const ui = await cockpit($, WIDE)
+
+    expect(await reading(ui, 'CRÉDITS')).toBe(shown)
+    await ui.unmount()
+  })
+}
+
+test('a week that moved with nothing noted as spent tells no worth: the last one stands', async ($, on) => {
+  const { clock, held } = engine(on, {
+    store: { 'rate-1': 0.5, 'week-1:s1': { week: WEEK, from: 30, to: 36, spent: 0, usd: 1.4242 } },
+  })
+  await start($, clock)
+  const ui = await cockpit($, WIDE)
+
+  expect(await reading(ui, 'CRÉDITS')).toBe('¤ 0.0% 7J')
+  expect(held.get('rate-1')).toBe(0.5)
+  await ui.unmount()
+})
+
+for (const worth of ['half', '0.5']) {
+  test(`a stored worth that is no number ('${worth}') is passed over`, async ($, on) => {
+    const { clock } = engine(on, { store: { 'rate-1': worth } })
+    await start($, clock)
+    const ui = await cockpit($, WIDE)
+
+    expect(await reading(ui, 'CRÉDITS')).toBe('¤ --')
+    await ui.unmount()
+  })
+}
+
+test('a session whose cost the engine tells no more shows no share of the week', async ($, on) => {
+  let hasCost = true
+  const { clock } = engine(on, { usage: usual => (hasCost ? usual : { ...usual, cost: undefined }) })
+  await start($, clock)
+  const before = await cockpit($, WIDE)
+  expect(await reading(before, 'CRÉDITS')).toBe('¤ 1.4% 7J')
+  await before.unmount()
+
+  hasCost = false
+  await clock.advance(15_000)
+  const ui = await cockpit($, WIDE)
+  expect(await reading(ui, 'CRÉDITS')).toBe('¤ --')
+  await ui.unmount()
+})
+
+test('a cost that starts over counts from there', async ($, on) => {
+  let usd = 1.4242
+  const { clock } = engine(on, {
+    cost: () => usd,
+    store: { 'rate-1': 0.5, 'week-1:s1': { week: WEEK, from: 36, to: 36, spent: 2.84, usd: 5 } },
+  })
+  await start($, clock)
+  const lower = await cockpit($, WIDE)
+  expect(await reading(lower, 'CRÉDITS')).toBe('¤ 1.4% 7J')
+  await lower.unmount()
+
+  usd = 2.4242
+  await clock.advance(15_000)
+  const grown = await cockpit($, WIDE)
+  expect(await reading(grown, 'CRÉDITS')).toBe('¤ 1.9% 7J')
+  await grown.unmount()
+})
+
+test('after a /clear, the session under its new id opens an entry of its own', async ($, on) => {
+  let id = 's1'
+  const { clock, held } = engine(on, { sessionId: () => id })
+  await start($, clock)
+
+  id = 's2'
+  await clock.advance(15_000)
+  const ui = await cockpit($, WIDE)
+  expect(await reading(ui, 'CRÉDITS')).toBe('¤ 0.0% 7J')
+  expect(held.get('week-1:s2')).toEqual({ week: WEEK, from: 36, to: 36, spent: 0, usd: 1.4242 })
+  expect(held.get('week-1:s1')).toEqual({ week: WEEK, from: 36, to: 36, spent: 2.84, usd: 1.4242 })
+  await ui.unmount()
+})
+
+test("a new week starts the session's entry over", async ($, on) => {
+  let usage = weekly(36)
+  const { clock, held } = engine(on, { usage: usual => usage(usual) })
+  await start($, clock)
+
+  usage = weekly(3, WEEK_RESET + 168 * HOUR)
+  await clock.advance(15_000)
+  const ui = await cockpit($, WIDE)
+  expect(await reading(ui, 'CRÉDITS')).toBe('¤ 0.0% 7J')
+  expect(held.get('week-1:s1')).toEqual({ week: WEEK + DAYS_7, from: 3, to: 3, spent: 0, usd: 1.4242 })
+  await ui.unmount()
+})
+
+for (const [apart, shift, shown] of [
+  ['less than an hour apart are one week: the entry goes on', HOUR - 1, '¤ 1.4% 7J'],
+  ['less than an hour apart the other way are one week too', 1 - HOUR, '¤ 1.4% 7J'],
+  ['an hour apart are two: the entry starts over', HOUR, '¤ 0.0% 7J'],
+] as const) {
+  test(`two readings that say the week's reset ${apart}`, async ($, on) => {
+    let usage = weekly(36)
+    const { clock } = engine(on, { usage: usual => usage(usual) })
+    await start($, clock)
+
+    usage = weekly(36, WEEK_RESET + shift)
+    await clock.advance(15_000)
+    const ui = await cockpit($, WIDE)
+    expect(await reading(ui, 'CRÉDITS')).toBe(shown)
+    await ui.unmount()
+  })
+}
+
+test("another session's entry that says the week's reset a moment apart counts, and is kept", async ($, on) => {
+  const { clock, held } = engine(on, {
+    store: {
+      'rate-1': 0.5,
+      'week-1:s1': { week: WEEK, from: 30, to: 33, spent: 2, usd: 1.4242 },
+      'week-1:s2': { week: WEEK - 20 * MINUTE, from: 28, to: 35, spent: 6, usd: 9 },
+    },
+  })
+  await start($, clock)
+  const ui = await cockpit($, WIDE)
+
+  expect(await reading(ui, 'CRÉDITS')).toBe('¤ 2.0% 7J')
+  expect(held.has('week-1:s2')).toBe(true)
+  await ui.unmount()
+})
+
+test('a session is never said to have taken more of the week than the whole account', async ($, on) => {
+  // A worth of 20 points a dollar would make 2.84 $ more than half the week: the account stands at 36 %.
+  const { clock } = engine(on, {
+    store: { 'rate-1': 20, 'week-1:s1': { week: WEEK, from: 36, to: 36, spent: 2.84, usd: 1.4242 } },
+  })
+  await start($, clock)
+  const ui = await cockpit($, WIDE)
+
+  expect(await reading(ui, 'CRÉDITS')).toBe('¤ 36.0% 7J')
+  await ui.unmount()
+})
+
+test("a dollar's worth is worked out again every five minutes, no sooner", async ($, on) => {
+  const { clock, held } = engine(on)
+  await start($, clock)
+
+  // Another session moved the week six points for 3.16 $: with this one's
+  // 2.84 $, a point a dollar.
+  held.set('week-1:s2', { week: WEEK, from: 30, to: 36, spent: 3.16, usd: 4 })
+  await clock.advance(285_000)
+  const before = await cockpit($, WIDE)
+  expect(await reading(before, 'CRÉDITS')).toBe('¤ 1.4% 7J')
+  await before.unmount()
+
+  await clock.advance(15_000)
+  const after = await cockpit($, WIDE)
+  expect(await reading(after, 'CRÉDITS')).toBe('¤ 2.8% 7J')
+  await after.unmount()
+})
+
+test('a reading that changes nothing writes no entry to the store; a cost or a week that moved, one', async ($, on) => {
+  let usd = 1.4242
+  let used = 36
+  const { clock, held, writes } = engine(on, { cost: () => usd, usage: usual => weekly(used)(usual) })
+  const entries = () => writes.filter(key => key.startsWith('week-1:'))
+  await start($, clock)
+  await clock.advance(15_000)
+  expect(entries()).toEqual([])
+
+  usd = 2
+  await clock.advance(15_000)
+  expect(entries()).toEqual(['week-1:s1'])
+  used = 36.4
+  await clock.advance(15_000)
+  expect(entries()).toEqual(['week-1:s1', 'week-1:s1'])
+  expect(held.get('week-1:s1')).toEqual({ week: WEEK, from: 36, to: 36.4, spent: 2.84 + (2 - 1.4242), usd: 2 })
+})
+
+test('a session that ends between two polls notes its spending on the way out', async ($, on) => {
+  let usd = 1.4242
+  const { clock, held } = engine(on, { cost: () => usd })
+  await start($, clock)
+
+  usd = 3.4242
+  await $.session.end({ reason: 'other', sessionId: 's1', resume: { id: 's1' } })
+  expect(held.get('week-1:s1')).toEqual({ week: WEEK, from: 36, to: 36, spent: 4.84, usd: 3.4242 })
+})
+
+test('an idle session that ends notes the week as the other sessions last read it, not as it last did', async ($, on) => {
+  let usd = 1.4242
+  const { clock, held } = engine(on, { cost: () => usd })
+  await start($, clock)
+
+  // Another session has since read 41 % of the week used.
+  held.set('limits-1', left(41, WEEK_RESET))
+  usd = 3.4242
+  await $.session.end({ reason: 'other', sessionId: 's1', resume: { id: 's1' } })
+  expect(held.get('week-1:s1')).toEqual({ week: WEEK, from: 36, to: 41, spent: 4.84, usd: 3.4242 })
+})
+
+test('a session whose usage cannot be read still ends', async ($, on) => {
+  let isDown = false
+  const { clock } = engine(on, { isUsageDown: () => isDown })
+  await start($, clock)
+
+  isDown = true
+  expect(await $.session.end({ reason: 'other', sessionId: 's1', resume: { id: 's1' } })).toEqual({ sessionId: 's1' })
+})
+
+test('a store that cannot be read leaves the band up, the credits as they were', async ($, on) => {
+  let isDown = false
+  let id = 's1'
+  const { clock } = engine(on, { isStoreDown: () => isDown, sessionId: () => id })
+  await start($, clock)
+
+  isDown = true
+  // A new id: the entry must be read from the store.
+  id = 's2'
+  await clock.advance(15_000)
+  const ui = await cockpit($, WIDE)
+  expect(await reading(ui, 'CRÉDITS')).toBe('¤ 1.4% 7J')
+  expect(await reading(ui, 'VAISSEAU')).toBe('OPUS 5.5  EN ORBITE')
+  await ui.unmount()
+})
+
+const HOME = '/home/muchini'
+const PSRP = `${HOME}/psrp-rs`
+const REV_PARSE = ['git', 'rev-parse', '--path-format=absolute', '--show-toplevel', '--git-common-dir']
+
+// A session started from the home folder, which is in no repository, with
+// one beneath it; every tool answers at once.
+function adrift(on: On, options: Options = {}) {
+  on('tool.call', () => ({ result: {} }))
+
+  return engine(on, {
+    cwd: HOME,
+    git: cwd => (cwd === PSRP ? GIT_STATUS : null),
+    tree: cwd => (cwd.startsWith(PSRP) ? `${PSRP}\n${PSRP}/.git\n` : null),
+    ...options,
+  })
+}
+
+async function nav($: Engine): Promise<string> {
+  const ui = await cockpit($, WIDE)
+  const shown = await reading(ui, 'NAV')
+  await ui.unmount()
+
+  return shown
+}
+
+async function systems($: Engine): Promise<string> {
+  const ui = await cockpit($, WIDE)
+  const shown = await reading(ui, 'SYSTÈMES')
+  await ui.unmount()
+
+  return shown
+}
+
+test('from a folder in no repository, NAV follows the project of the file Claude touches, at once', async ($, on) => {
+  const { clock, runs } = adrift(on)
+  await start($, clock)
+  expect(await nav($)).toBe('muchini')
+
+  await $.tool.call({ tool: 'Read', tool_use_id: 'tu1', file_path: `${PSRP}/src/lib.rs` })
+  await clock.settle()
+  expect(await nav($)).toBe('psrp-rs : main ± 3 ↑2↓1')
+  expect(runs).toContainEqual({ argv: REV_PARSE, init: { cwd: `${PSRP}/src`, timeoutMs: 2000 } })
+})
+
+test('a notebook Claude edits is followed like any file', async ($, on) => {
+  const { clock } = adrift(on)
+  await start($, clock)
+
+  await $.tool.call({ tool: 'NotebookEdit', tool_use_id: 'tu1', notebook_path: `${PSRP}/notes.ipynb`, new_source: '' })
+  await clock.settle()
+  expect(await nav($)).toBe('psrp-rs : main ± 3 ↑2↓1')
+})
+
+test('a linked work tree is named after the repository it shares, not after its own folder', async ($, on) => {
+  const tree = `${HOME}/worktrees/cockpit-mods/feat-valeur`
+  const { clock } = adrift(on, {
+    git: cwd => (cwd === tree ? '# branch.oid 0123abc\n# branch.head feat/valeur' : null),
+    tree: () => `${tree}\n${HOME}/.claude/mods/.git\n`,
+  })
+  await start($, clock)
+
+  await $.tool.call({ tool: 'Edit', tool_use_id: 'tu1', file_path: `${tree}/README.md`, old_string: 'a', new_string: 'b' })
+  await clock.settle()
+  expect(await nav($)).toBe('mods : feat/valeur ✓')
+})
+
+test('a work tree whose repository keeps its directory elsewhere is named after its own folder', async ($, on) => {
+  const tree = `${HOME}/super/sub`
+  const { clock } = adrift(on, {
+    git: cwd => (cwd === tree ? GIT_STATUS : null),
+    tree: () => `${tree}\n${HOME}/super/.git/modules/sub\n`,
+  })
+  await start($, clock)
+
+  await $.tool.call({ tool: 'Read', tool_use_id: 'tu1', file_path: `${tree}/a.rs` })
+  await clock.settle()
+  expect(await nav($)).toBe('sub : main ± 3 ↑2↓1')
+})
+
+test('in a repository of its own, the session follows nothing and git is not asked', async ($, on) => {
+  const { clock, runs } = engine(on)
+  on('tool.call', () => ({ result: {} }))
+  await start($, clock)
+
+  await $.tool.call({ tool: 'Read', tool_use_id: 'tu1', file_path: `${PSRP}/src/lib.rs` })
+  await clock.settle()
+  expect(await nav($)).toBe('projet : main ± 3 ↑2↓1')
+  expect(runs.filter(({ argv }) => argv[1] === 'rev-parse')).toEqual([])
+})
+
+for (const [where, said] of [
+  ['in no repository', null],
+  ['where git names no work tree', ''],
+] as const) {
+  test(`a file ${where} leaves NAV on the project followed`, async ($, on) => {
+    const { clock, runs } = adrift(on, { tree: cwd => (cwd.startsWith(PSRP) ? `${PSRP}\n${PSRP}/.git\n` : said) })
+    await start($, clock)
+
+    await $.tool.call({ tool: 'Read', tool_use_id: 'tu1', file_path: `${PSRP}/src/lib.rs` })
+    await $.tool.call({ tool: 'Read', tool_use_id: 'tu2', file_path: '/notes.txt' })
+    await clock.settle()
+    expect(await nav($)).toBe('psrp-rs : main ± 3 ↑2↓1')
+    // A file at the root is looked up there.
+    expect(runs).toContainEqual({ argv: REV_PARSE, init: { cwd: '/', timeoutMs: 2000 } })
+    // The tool is done all the same.
+    expect(await systems($)).toBe('· veille ×2')
+  })
+}
+
+test('a tool that names no file by an absolute path changes nothing', async ($, on) => {
+  const { clock, runs } = adrift(on)
+  await start($, clock)
+
+  await $.tool.call({ tool: 'Bash', tool_use_id: 'tu1', command: `ls ${PSRP}` })
+  await $.tool.call({ tool: 'Read', tool_use_id: 'tu2', file_path: 'psrp-rs/src/lib.rs' })
+  await clock.settle()
+  expect(await nav($)).toBe('muchini')
+  expect(runs.filter(({ argv }) => argv[1] === 'rev-parse')).toEqual([])
+  // Both tools are counted and done.
+  expect(await systems($)).toBe('· veille ×2')
+})
+
+test('git is asked once for a folder, and a project already followed is not read again', async ($, on) => {
+  const { clock, runs } = adrift(on)
+  await start($, clock)
+  const asked = () => runs.filter(({ argv }) => argv[1] === 'rev-parse').length
+  const read = () => runs.filter(({ init }) => init?.cwd === PSRP).length
+
+  await $.tool.call({ tool: 'Read', tool_use_id: 'tu1', file_path: `${PSRP}/src/lib.rs` })
+  await $.tool.call({ tool: 'Read', tool_use_id: 'tu2', file_path: `${PSRP}/src/main.rs` })
+  await clock.settle()
+  expect({ asked: asked(), read: read() }).toEqual({ asked: 1, read: 1 })
+
+  // Another folder of the same project: asked, but nothing new to show.
+  await $.tool.call({ tool: 'Read', tool_use_id: 'tu3', file_path: `${PSRP}/tests/a.rs` })
+  await clock.settle()
+  expect({ asked: asked(), read: read() }).toEqual({ asked: 2, read: 1 })
+})
+
+test('past two hundred folders, the ones remembered are forgotten and asked again', async ($, on) => {
+  const { clock, runs } = adrift(on)
+  await start($, clock)
+  const asked = () => runs.filter(({ argv }) => argv[1] === 'rev-parse').length
+
+  for (let i = 0; i < 200; i++) await $.tool.call({ tool: 'Read', tool_use_id: `tu${i}`, file_path: `${PSRP}/d${i}/a.rs` })
+  await $.tool.call({ tool: 'Read', tool_use_id: 'again', file_path: `${PSRP}/d0/b.rs` })
+  expect(asked()).toBe(200)
+
+  await $.tool.call({ tool: 'Read', tool_use_id: 'more', file_path: `${PSRP}/d200/a.rs` })
+  await $.tool.call({ tool: 'Read', tool_use_id: 'anew', file_path: `${PSRP}/d0/c.rs` })
+  expect(asked()).toBe(202)
+})
+
+test('a git that fails is believed for nothing, whatever it printed first', async ($, on) => {
+  const { clock } = adrift(on, { tree: () => ({ failed: `${PSRP}\n${PSRP}/.git\n` }) })
+  await start($, clock)
+
+  await $.tool.call({ tool: 'Read', tool_use_id: 'tu1', file_path: `${PSRP}/src/lib.rs` })
+  await clock.settle()
+  expect(await nav($)).toBe('muchini')
+})
+
+test('a git that names the work tree alone has it named after its own folder', async ($, on) => {
+  const { clock } = adrift(on, { tree: () => PSRP })
+  await start($, clock)
+
+  await $.tool.call({ tool: 'Read', tool_use_id: 'tu1', file_path: `${PSRP}/src/lib.rs` })
+  await clock.settle()
+  expect(await nav($)).toBe('psrp-rs : main ± 3 ↑2↓1')
+})
+
+test('before its first reading a session takes itself to be in a repository: git is not asked about a file', async ($, on) => {
+  const { runs } = adrift(on)
+
+  await $.tool.call({ tool: 'Read', tool_use_id: 'tu1', file_path: `${PSRP}/src/lib.rs` })
+  expect(runs.filter(({ argv }) => argv[1] === 'rev-parse')).toEqual([])
+})
+
+test('a folder git was too slow about takes no room among the ones remembered', async ($, on) => {
+  let isSlow = false
+  const { clock, runs } = adrift(on, {
+    tree: () => {
+      if (isSlow) throw new Error('timed out')
+      return `${PSRP}\n${PSRP}/.git\n`
+    },
+  })
+  await start($, clock)
+  const asked = () => runs.filter(({ argv }) => argv[1] === 'rev-parse').length
+
+  for (let i = 0; i < 199; i++) await $.tool.call({ tool: 'Read', tool_use_id: `tu${i}`, file_path: `${PSRP}/d${i}/a.rs` })
+  isSlow = true
+  await $.tool.call({ tool: 'Read', tool_use_id: 'slow', file_path: `${PSRP}/slow/a.rs` })
+  isSlow = false
+  // The two hundredth remembered: nothing is forgotten yet.
+  await $.tool.call({ tool: 'Read', tool_use_id: 'more', file_path: `${PSRP}/d199/a.rs` })
+  await $.tool.call({ tool: 'Read', tool_use_id: 'again', file_path: `${PSRP}/d0/b.rs` })
+  expect(asked()).toBe(201)
+})
+
+test('a folder git was too slow to place is asked again at its next file', async ($, on) => {
+  let isSlow = true
+  const { clock } = adrift(on, {
+    tree: () => {
+      if (isSlow) throw new Error('timed out')
+      return `${PSRP}\n${PSRP}/.git\n`
+    },
+  })
+  await start($, clock)
+
+  await $.tool.call({ tool: 'Read', tool_use_id: 'tu1', file_path: `${PSRP}/src/lib.rs` })
+  await clock.settle()
+  expect(await nav($)).toBe('muchini')
+  // The tool is done all the same.
+  expect(await systems($)).toBe('· veille ×1')
+
+  isSlow = false
+  await $.tool.call({ tool: 'Read', tool_use_id: 'tu2', file_path: `${PSRP}/src/main.rs` })
+  await clock.settle()
+  expect(await nav($)).toBe('psrp-rs : main ± 3 ↑2↓1')
+})
+
+test('a project followed that is no work tree any more gives NAV back to the session folder', async ($, on) => {
+  let isGone = false
+  const { clock } = adrift(on, { git: cwd => (cwd === PSRP && !isGone ? GIT_STATUS : null) })
+  await start($, clock)
+  await $.tool.call({ tool: 'Read', tool_use_id: 'tu1', file_path: `${PSRP}/src/lib.rs` })
+  await clock.settle()
+
+  isGone = true
+  await clock.advance(15_000)
+  expect(await nav($)).toBe('muchini')
+
+  // Back again, and touched again: followed anew.
+  isGone = false
+  await clock.advance(15_000)
+  expect(await nav($)).toBe('muchini')
+  await $.tool.call({ tool: 'Read', tool_use_id: 'tu2', file_path: `${PSRP}/src/lib.rs` })
+  await clock.settle()
+  expect(await nav($)).toBe('psrp-rs : main ± 3 ↑2↓1')
+})
+
+test('a project followed too slow to answer keeps what NAV last showed', async ($, on) => {
+  let isSlow = false
+  const { clock } = adrift(on, {
+    git: cwd => {
+      if (cwd !== PSRP) return null
+      if (isSlow) throw new Error('timed out')
+      return GIT_STATUS
+    },
+  })
+  await start($, clock)
+  await $.tool.call({ tool: 'Read', tool_use_id: 'tu1', file_path: `${PSRP}/src/lib.rs` })
+  await clock.settle()
+
+  isSlow = true
+  await clock.advance(15_000)
+  expect(await nav($)).toBe('psrp-rs : main ± 3 ↑2↓1')
+})
+
+test('a session that moves into a repository of its own shows that one again', async ($, on) => {
+  let cwd = HOME
+  const { clock } = adrift(on, { cwd: () => cwd, git: dir => (dir === HOME ? null : GIT_STATUS) })
+  await start($, clock)
+  await $.tool.call({ tool: 'Read', tool_use_id: 'tu1', file_path: `${PSRP}/src/lib.rs` })
+  await clock.settle()
+  expect(await nav($)).toBe('psrp-rs : main ± 3 ↑2↓1')
+
+  cwd = `${HOME}/winrm-rs`
+  await clock.advance(15_000)
+  expect(await nav($)).toBe('winrm-rs : main ± 3 ↑2↓1')
+})
+
+test('a tool hands back once the project of its file is placed', async ($, on) => {
+  const placed = gate()
+  let isHeld = false
+  const { clock } = adrift(on, {
+    tree: async () => {
+      if (isHeld) await placed.promise
+      return `${PSRP}\n${PSRP}/.git\n`
+    },
+  })
+  await start($, clock)
+
+  isHeld = true
+  let isBack = false
+  const reading = $.tool.call({ tool: 'Read', tool_use_id: 'tu1', file_path: `${PSRP}/src/lib.rs` }).then(() => {
+    isBack = true
+  })
+  await clock.settle()
+  expect(isBack).toBe(false)
+  placed.release()
+  await reading
+  expect(isBack).toBe(true)
+})
+
+
+test('before its first response, a session shows the windows as the last one to read them left them', async ($, on) => {
+  const { clock } = engine(on, {
+    usage: unheard,
+    store: { 'rate-1': 0.5, 'limits-1': left(64, WEEK_RESET) },
+  })
+  await start($, clock)
+  const ui = await cockpit($, WIDE)
+
+  expect(await reading(ui, 'CARBURANT')).toMatch(new RegExp(`^7J ${GAUGE}{8} {2}36% ⟳ 4j04 à sec 1j13$`))
+  await ui.unmount()
+})
+
+for (const [when, ago, shown] of [
+  ['has reset this instant', 0, /^--$/],
+  ['resets in a minute', -MINUTE, / 36% ⟳ 1m tient$/],
+] as const) {
+  test(`a window left in the store that ${when} is ${ago === 0 ? 'left out' : 'still shown'}`, async ($, on) => {
+    const { clock } = engine(on, { usage: unheard, store: { 'limits-1': left(64, NOW - ago) } })
+    await start($, clock)
+    const ui = await cockpit($, WIDE)
+
+    expect(await reading(ui, 'CARBURANT')).toMatch(shown)
+    await ui.unmount()
+  })
+}
+
+for (const [what, kept] of [
+  ['a text', 'windows'],
+  ['nothing', undefined],
+  [
+    'a list of no window',
+    [
+      null,
+      5,
+      { kind: 'seven_day', resetsAt: new Date(WEEK_RESET).toISOString() },
+      { kind: 'seven_day', percentUsed: 64 },
+      { kind: 'seven_day', percentUsed: 64, resetsAt: WEEK_RESET },
+      { kind: 7, percentUsed: 64, resetsAt: new Date(WEEK_RESET).toISOString() },
+      { kind: 'seven_day', percentUsed: '64', resetsAt: new Date(WEEK_RESET).toISOString() },
+      { kind: 'seven_day', percentUsed: 64, resetsAt: 'soon' },
+    ],
+  ],
+] as const) {
+  test(`before its first response, with ${what} in the store for windows, the fuel shows dashes`, async ($, on) => {
+    const { clock } = engine(on, { usage: unheard, store: kept === undefined ? {} : { 'limits-1': kept } })
+    await start($, clock)
+    const ui = await cockpit($, WIDE)
+
+    expect(await reading(ui, 'CARBURANT')).toBe('--')
+    expect(await reading(ui, 'CRÉDITS')).toBe('¤ 1.42 $')
+    await ui.unmount()
+  })
+}
+
+test('a session leaves the windows it reads in the store for the next one, once for each change', async ($, on) => {
+  let used = 36
+  const { clock, held, writes } = engine(on, { usage: usual => weekly(used)(usual) })
+  const noted = () => writes.filter(key => key === 'limits-1').length
+  await start($, clock)
+  await clock.advance(15_000)
+  expect(noted()).toBe(1)
+  expect(held.get('limits-1')).toEqual(left(36, WEEK_RESET))
+
+  used = 37
+  await clock.advance(15_000)
+  expect(noted()).toBe(2)
+  expect(held.get('limits-1')).toEqual(left(37, WEEK_RESET))
+})
+
+test('with the windows known from the store, a session counts its spending from before its first request', async ($, on) => {
+  let usage = (usual: SessionUsage): SessionUsage => ({ ...unheard(usual), cost: { usd: 0 } })
+  const { clock, held } = engine(on, {
+    usage: usual => usage(usual),
+    store: { 'rate-1': 0.5, 'limits-1': left(36, WEEK_RESET) },
+  })
+  await start($, clock)
+  expect(held.get('week-1:s1')).toEqual({ week: WEEK, from: 36, to: 36, spent: 0, usd: 0 })
+
+  // The first response: 2 $, and the week half a point on.
+  usage = usual => ({ ...weekly(36.5)(usual), cost: { usd: 2 } })
+  await clock.advance(15_000)
+  expect(held.get('week-1:s1')).toEqual({ week: WEEK, from: 36, to: 36.5, spent: 2, usd: 2 })
+  const ui = await cockpit($, WIDE)
+  expect(await reading(ui, 'CRÉDITS')).toBe('¤ 1.0% 7J')
+  await ui.unmount()
+})
+
+test('a measure that names no window leaves the fuel as it reads; one that names them reaches it', async ($, on) => {
+  const { clock } = engine(on)
+  on('session.measure', (_, e) => ({ changed: e.changed }))
+  await start($, clock)
+
+  await $.session.measure({ context: { window: 200_000, tokens: 120_000, percent: 60 }, rateLimits: [], changed: ['context'] })
+  const kept = await cockpit($, WIDE)
+  expect(await reading(kept, 'CARBURANT')).toMatch(/ 88% ⟳ 2h13 7J /)
+  await kept.unmount()
+
+  await $.session.measure({
+    context: { window: 200_000, tokens: 120_000, percent: 60 },
+    rateLimits: [{ kind: 'five_hour', percentUsed: 50 }],
+    changed: ['rateLimits'],
+  })
+  const moved = await cockpit($, WIDE)
+  expect(await reading(moved, 'CARBURANT')).toMatch(new RegExp(`^${GAUGE}{8} {2}50%$`))
+  await moved.unmount()
+})
+
+test('before its first response, a store that cannot be read leaves the band up, the fuel in dashes', async ($, on) => {
+  const { clock } = engine(on, { usage: unheard, isStoreDown: () => true })
+  await start($, clock)
+  const ui = await cockpit($, WIDE)
+
+  expect(await reading(ui, 'CARBURANT')).toBe('--')
+  expect(await reading(ui, 'BOUCLIER')).toMatch(/ 77% {2}46k\/200k$/)
+  await ui.unmount()
+})
+
+test('an idle session follows the windows a busier one left in the store', async ($, on) => {
+  // Its own reading says 36 % used; another session has since read 40 %.
+  const { clock, held, writes } = engine(on, { usage: weekly(36), store: { 'rate-1': 0.5, 'limits-1': left(40, WEEK_RESET) } })
+  await start($, clock)
+  const ui = await cockpit($, WIDE)
+
+  expect(await reading(ui, 'CARBURANT')).toMatch(/ 60% ⟳ 4j04 tient$/)
+  expect(held.get('limits-1')).toEqual(left(40, WEEK_RESET))
+  expect(writes).not.toContain('limits-1')
+  await ui.unmount()
+})
+
+test('a window that reset since the store heard of it is read anew, however little is used', async ($, on) => {
+  const { clock, held } = engine(on, {
+    usage: weekly(3, WEEK_RESET + DAYS_7),
+    store: { 'limits-1': left(90, WEEK_RESET) },
+  })
+  await start($, clock)
+  const ui = await cockpit($, WIDE)
+
+  expect(await reading(ui, 'CARBURANT')).toMatch(/ 97% ⟳ 11j04/)
+  expect(held.get('limits-1')).toEqual(left(3, WEEK_RESET + DAYS_7))
+  await ui.unmount()
+})
+
+test('a window only the store knows shows beside the one the session read, and stays in the store', async ($, on) => {
+  const fiveHour = { kind: 'five_hour', percentUsed: 12, resetsAt: new Date(NOW + 133 * MINUTE).toISOString() }
+  const { clock, held } = engine(on, {
+    usage: usual => ({ ...usual, rateLimits: [fiveHour] }),
+    store: { 'limits-1': left(36, WEEK_RESET) },
+  })
+  await start($, clock)
+  const ui = await cockpit($, WIDE)
+
+  expect(await reading(ui, 'CARBURANT')).toMatch(new RegExp(` 88% ⟳ 2h13 7J ${GAUGE}{4} {2}64% tient$`))
+  expect(held.get('limits-1')).toEqual([fiveHour, ...left(36, WEEK_RESET)])
+  await ui.unmount()
+})
+
+test('the windows are kept in one order and with their own fields alone, whoever wrote them', async ($, on) => {
+  const fiveHour = { kind: 'five_hour', percentUsed: 12, resetsAt: new Date(NOW + 133 * MINUTE).toISOString() }
+  const [sevenDay] = left(36, WEEK_RESET)
+  const { clock, held, writes } = engine(on, {
+    // The engine names the week first, and one field more.
+    usage: usual => ({ ...usual, rateLimits: [{ ...sevenDay, extra: true }, fiveHour] as SessionUsage['rateLimits'] }),
+    store: { 'limits-1': [fiveHour, sevenDay] },
+  })
+  await start($, clock)
+
+  expect(writes).not.toContain('limits-1')
+  expect(held.get('limits-1')).toEqual([fiveHour, sevenDay])
+})
+
+test('a window that does not say when it resets is shown but not left in the store', async ($, on) => {
+  const { clock, held } = engine(on, {
+    usage: usual => ({ ...usual, rateLimits: [{ kind: 'five_hour', percentUsed: 40 }] }),
+    store: {},
+  })
+  await start($, clock)
+  const ui = await cockpit($, WIDE)
+
+  expect(await reading(ui, 'CARBURANT')).toMatch(new RegExp(`^${GAUGE}{8} {2}60%$`))
+  expect(held.has('limits-1')).toBe(false)
+  await ui.unmount()
+})
+
+test('readings run one at a time: one asked while another is under way waits its turn', async ($, on) => {
+  const held = gate()
+  let isHeld = false
+  const { clock, runs } = engine(on, {
+    git: async () => {
+      if (isHeld) await held.promise
+      return GIT_STATUS
+    },
+  })
+  on('turn.complete', () => ({ text: '' }))
+  await start($, clock)
+  const clocks = () => runs.filter(({ argv }) => argv[0] === 'date').length
+  expect(clocks()).toBe(1)
+
+  // The poll's reading is held on git; a turn then asks for another.
+  isHeld = true
+  await clock.advance(15_000)
+  await $.turn.complete({ turnId: 't1', reason: 'answer', answer: '', durationMs: 10, isAborted: false })
+  await clock.settle()
+  expect(clocks()).toBe(2)
+
+  isHeld = false
+  held.release()
+  await clock.settle()
+  expect(clocks()).toBe(3)
+})
+
+test('a window the session read without its reset gives way to the one the store holds', async ($, on) => {
+  const fiveHour = { kind: 'five_hour', percentUsed: 12, resetsAt: new Date(NOW + 133 * MINUTE).toISOString() }
+  const { clock } = engine(on, {
+    usage: usual => ({ ...usual, rateLimits: [{ kind: 'five_hour', percentUsed: 40 }] }),
+    store: { 'limits-1': [fiveHour] },
+  })
+  await start($, clock)
+  const ui = await cockpit($, WIDE)
+
+  expect(await reading(ui, 'CARBURANT')).toMatch(/ 88% ⟳ 2h13 tient$/)
+  await ui.unmount()
+})
+
+test('what the store holds for windows that is none is dropped at the next reading', async ($, on) => {
+  const soon = new Date(WEEK_RESET).toISOString()
+  const { clock, held } = engine(on, {
+    usage: weekly(36),
+    store: { 'limits-1': [null, { kind: 7, percentUsed: 64, resetsAt: soon }, { percentUsed: 64, resetsAt: soon }] },
+  })
+  await start($, clock)
+  const ui = await cockpit($, WIDE)
+
+  expect(await reading(ui, 'CARBURANT')).toMatch(/ 64% ⟳ 4j04 tient$/)
+  expect(held.get('limits-1')).toEqual(left(36, WEEK_RESET))
+  await ui.unmount()
+})
+
+test('a window alone in the store, not in a list, is read all the same', async ($, on) => {
+  const { clock } = engine(on, { usage: unheard, store: { 'limits-1': left(64, WEEK_RESET)[0] } })
+  await start($, clock)
+  const ui = await cockpit($, WIDE)
+
+  expect(await reading(ui, 'CARBURANT')).toMatch(/ 36% ⟳ 4j04 à sec 1j13$/)
+  await ui.unmount()
+})
+
+test('a stored window whose percentage is a text, even of a number, is no window', async ($, on) => {
+  const stored = [{ kind: 'seven_day', percentUsed: '64', resetsAt: new Date(WEEK_RESET).toISOString() }]
+  const { clock } = engine(on, { usage: unheard, store: { 'limits-1': stored } })
+  await start($, clock)
+  const ui = await cockpit($, WIDE)
+
+  expect(await reading(ui, 'CARBURANT')).toBe('--')
+  await ui.unmount()
 })

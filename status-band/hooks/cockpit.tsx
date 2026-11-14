@@ -117,9 +117,16 @@ const LOW_PCT = 20
 const HALF_PCT = 50
 const LOW_RAM_MB = 4096
 const TIGHT_RAM_MB = 8192
-// Room kept for a tool's name, by level; for the work tree's marks (✎ 12 ↑3↓1).
+// Room kept for a tool's name, by level; for the work tree's marks (± 12 ↑3↓1).
 const TOOL_NAME: Record<Level, number> = { 0: 8, 1: 6, 2: 6 }
 const GIT_MARKS = 10
+const HOUR_MS = 3_600_000
+// How long each tank's window runs.
+const FIVE_HOURS_MS = 5 * HOUR_MS
+const SEVEN_DAYS_MS = 7 * 24 * HOUR_MS
+// A tank's pace is read once a twentieth of its window has run: sooner, a
+// few minutes would speak for the week.
+const PACE_AFTER = 20
 
 // Mulberry32: the same sky on every mount.
 function random(seed: number): () => number {
@@ -161,10 +168,6 @@ function isBlinkOn(ms: number): boolean {
   return Math.floor(ms / BLINK_MS) % 2 === 0
 }
 
-function left(usedPct: number | null): number | null {
-  return usedPct === null ? null : 100 - usedPct
-}
-
 // 46000 → 46k ; 1000000 → 1M
 function compact(n: number): string {
   if (n < 1000) return String(n)
@@ -172,11 +175,14 @@ function compact(n: number): string {
   return `${Number((n / 1_000_000).toFixed(1))}M`
 }
 
-// 72 min → 1h12 ; 45 min → 45m. A countdown rounds up, to the minute it ends in.
+// 45 min → 45m ; 72 min → 1h12 ; 101 h → 4j05. A countdown rounds up, to
+// the minute it ends in.
 function duration(ms: number, round = Math.floor): string {
   const minutes = Math.max(0, round(ms / 60_000))
   if (minutes < 60) return `${minutes}m`
-  return `${Math.floor(minutes / 60)}h${String(minutes % 60).padStart(2, '0')}`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `${hours}h${String(minutes % 60).padStart(2, '0')}`
+  return `${Math.floor(hours / 24)}j${String(hours % 24).padStart(2, '0')}`
 }
 
 // T+mm:ss, the minutes growing past 99.
@@ -242,7 +248,7 @@ function readNav(v: View): Reading {
   const where = [value(line.dir), ...(line.branch ? [plain(' : ', 'subtle'), plain(line.branch, ACCENT)] : [])]
   if (git === null) return { body: where, min: 0 }
   const marks = [
-    git.changed > 0 ? plain(` ✎ ${git.changed}`, 'warning') : plain(' ✓', 'success'),
+    git.changed > 0 ? plain(` ± ${git.changed}`, 'warning') : plain(' ✓', 'success'),
     ...(git.ahead > 0 || git.behind > 0 ? [plain(' ')] : []),
     ...(git.ahead > 0 ? [plain(`↑${git.ahead}`, ACCENT)] : []),
     ...(git.behind > 0 ? [plain(`↓${git.behind}`, 'warning')] : []),
@@ -266,26 +272,69 @@ function readShield(v: View): Reading {
   return { body: [...gauge(v.shield, n, v.ms), percent(pct), ...tokens], min, alert: pct < LOW_PCT }
 }
 
+// One rate-limit window: what is left of it, how long until it resets, and
+// how long it lasts at the pace kept since it opened.
+type Tank = { left: number; resetsIn: number | null; range: number | null }
+
+// The ms until a tank is dry at its pace so far, Infinity when it holds to
+// its reset; null while the window is too young to tell, or its reset past.
+function rangeOf(usedPct: number, resetsIn: number, span: number): number | null {
+  const elapsed = span - resetsIn
+  if (resetsIn < 0 || elapsed < span / PACE_AFTER) return null
+  // Nothing burnt yet: the division says Infinity.
+  const dryIn = ((100 - usedPct) * elapsed) / usedPct
+
+  return dryIn < resetsIn ? dryIn : Infinity
+}
+
+function tank(usedPct: number | null, resetsAt: number | null, span: number, t: number): Tank | null {
+  if (usedPct === null) return null
+  const resetsIn = resetsAt === null ? null : resetsAt - t
+
+  return { left: 100 - usedPct, resetsIn, range: resetsIn === null ? null : rangeOf(usedPct, resetsIn, span) }
+}
+
+function isFuelLow(line: Line): boolean {
+  // A window the account does not have has used nothing.
+  return [line.fiveHourPercent, line.sevenDayPercent].some(used => 100 - (used ?? 0) < LOW_PCT)
+}
+
+// The window the account has, its countdown, and whether the pace holds to
+// the reset. With both windows the five hours lead and the week follows.
 function readFuel(v: View): Reading {
   const { line } = v
-  const reserve = left(line.fiveHourPercent)
-  const week = left(line.sevenDayPercent)
-  // Gauge, percentage, ↻ 0h00, 7J, its gauge in full, its percentage.
-  const min = v.isFull ? 33 : 25
-  if (reserve === null) return { body: [empty('--')], min }
-  const resetsIn = line.fiveHourResetsAt === null ? null : line.fiveHourResetsAt - v.t
+  const five = tank(line.fiveHourPercent, line.fiveHourResetsAt, FIVE_HOURS_MS, v.t)
+  const week = tank(line.sevenDayPercent, line.sevenDayResetsAt, SEVEN_DAYS_MS, v.t)
+  const main = five ?? week
+  // Gauge, percentage, ⟳ 0h00, 7J, its gauge in full, its percentage, then
+  // `à sec 0j00`, which takes the countdown's place in a squeezed row.
+  const min = v.isFull ? 44 : 29
+  if (main === null) return { body: [empty('--')], min }
+
+  // The tank dry first is the one that counts: with none known, Infinity.
+  const ranges = [five, week].map(t => t?.range ?? null).filter(range => range !== null)
+  const soonest = Math.min(...ranges)
+  const isShort = soonest !== Infinity
+  const countdown = main.resetsIn === null ? [] : [plain(` ⟳ ${duration(main.resetsIn, Math.ceil)}`)]
+  const verdict = isShort
+    ? [plain(` à sec ${duration(soonest)}`, 'warning')]
+    : ranges.length > 0
+      ? [plain(' tient', 'success')]
+      : []
+  const second =
+    five === null || week === null
+      ? []
+      : [plain(' 7J'), ...(v.isFull ? [plain(' '), ...gauge(week.left, 4, v.ms)] : []), percent(week.left)]
 
   return {
     body: [
-      ...gauge(reserve, v.isFull ? 8 : 5, v.ms),
-      percent(reserve),
-      ...(resetsIn === null ? [] : [plain(` ↻ ${duration(resetsIn, Math.ceil)}`)]),
-      ...(week === null
-        ? []
-        : [plain(' 7J'), ...(v.isFull ? [plain(' '), ...gauge(week, 4, v.ms)] : []), percent(week)]),
+      ...(five === null ? [plain('7J ')] : []),
+      ...gauge(main.left, v.isFull ? 8 : 5, v.ms),
+      percent(main.left),
+      ...(v.isFull ? [...countdown, ...second, ...verdict] : [...(isShort ? verdict : countdown), ...second]),
     ],
     min,
-    alert: reserve < LOW_PCT || (week !== null && week < LOW_PCT),
+    alert: isFuelLow(line),
   }
 }
 
@@ -293,7 +342,7 @@ function readChrono(v: View): Reading {
   const { line } = v
   const turn = line.turnStartedAt === null ? empty('T+--:--') : value(stopwatch(v.t - line.turnStartedAt), ACCENT)
 
-  // Up to 99h59, then the turn's stopwatch.
+  // Up to 99j23, then the turn's stopwatch.
   return { body: [value(duration(v.t - (line.sessionStartedAt ?? v.t))), plain('  '), turn], min: 14 }
 }
 
@@ -303,7 +352,7 @@ function readSystems(v: View): Reading {
   const shown = name === null ? null : name.length > room ? `${name.slice(0, room - 1)}…` : name
 
   return {
-    body: [shown === null ? plain('· veille') : value(`▸ ${shown}`, ACCENT), plain(` ×${v.line.toolCount}`)],
+    body: [shown === null ? plain('· veille') : value(`► ${shown}`, ACCENT), plain(` ×${v.line.toolCount}`)],
     // The marker and the name, then up to three digits of count.
     min: 2 + room + 5,
   }
@@ -315,12 +364,24 @@ function readSquadron(v: View): Reading {
   return { body: [n > 0 ? value(`${n} en vol`, ACCENT) : plain('au hangar')], min: 9 }
 }
 
+// What the session costs in what the account pays with. On a weekly
+// allowance, its share of the week; off one, real money: dollars, not the
+// game's aUEC.
 function readCredits(v: View): Reading {
+  const { line } = v
+  // Up to 999.99 $, or 99.9% 7J.
+  const min = v.isFull ? 10 : 8
+  if (line.sevenDayPercent === null) {
+    return {
+      body: [value('¤ ', ACCENT), value((line.costUsd ?? 0).toFixed(2)), ...(v.isFull ? [plain(' $')] : [])],
+      min,
+    }
+  }
+  if (line.weekSharePercent === null) return { body: [value('¤ ', ACCENT), empty('--')], min }
+
   return {
-    // Real money: the store's credits are dollars, not the game's aUEC.
-    body: [value('¤ ', ACCENT), value((v.line.costUsd ?? 0).toFixed(2)), ...(v.isFull ? [plain(' $')] : [])],
-    // Up to 999.99.
-    min: v.isFull ? 10 : 8,
+    body: [value('¤ ', ACCENT), value(`${line.weekSharePercent.toFixed(1)}%`), ...(v.isFull ? [plain(' 7J')] : [])],
+    min,
   }
 }
 
@@ -382,14 +443,9 @@ function createSim(props: Props): Sim {
 
 function hasAlert(sim: Sim): boolean {
   const { line } = sim.props
-  const reserve = left(line.fiveHourPercent)
-  const week = left(line.sevenDayPercent)
 
   return (
-    sim.shield < LOW_PCT ||
-    (reserve !== null && reserve < LOW_PCT) ||
-    (week !== null && week < LOW_PCT) ||
-    (line.ramAvailableMb !== null && line.ramAvailableMb < LOW_RAM_MB)
+    sim.shield < LOW_PCT || isFuelLow(line) || (line.ramAvailableMb !== null && line.ramAvailableMb < LOW_RAM_MB)
   )
 }
 
