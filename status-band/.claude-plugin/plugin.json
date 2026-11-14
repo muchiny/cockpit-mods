@@ -1,0 +1,6 @@
+{
+  "name": "status-band",
+  "version": "0.5.0",
+  "description": "Cockpit spatial transparent au-dessus du prompt : étoiles animées, saut quantique pendant le travail, 11 instruments (vaisseau, nav + git, bouclier, carburant 5 h/7 j, chrono, systèmes, escadrille, crédits, soute, contrats, heure), compactage progressif puis pages selon la largeur",
+  "types": "./types/index.d.ts"
+}

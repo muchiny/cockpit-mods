@@ -1,0 +1,17 @@
+{
+  "name": "cockpit-mods",
+  "description": "Mods Claude Code au thème cockpit spatial : un bandeau d'instruments au-dessus du prompt et un plan de vol de la session",
+  "owner": { "name": "muchiny" },
+  "plugins": [
+    {
+      "name": "status-band",
+      "source": "./status-band",
+      "description": "Cockpit spatial au-dessus du prompt : étoiles animées, saut quantique pendant le travail, onze instruments"
+    },
+    {
+      "name": "plan-de-vol",
+      "source": "./plan-de-vol",
+      "description": "Panneau latéral « plan de vol » : logigramme de la session (prompts, étapes, pourquoi)"
+    }
+  ]
+}

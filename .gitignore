@@ -1,0 +1,15 @@
+# Dépendances des bancs qualité (`npm ci` dans qa/).
+node_modules/
+
+# Rapports, verdicts et copies de travail des bancs : régénérés à chaque mesure.
+qa/status-band/.coverage/
+qa/status-band/.mutation/
+qa/plan-de-vol/coverage/
+qa/plan-de-vol/mutation/
+*.log
+
+# Types du moteur : Claude Code les réécrit à chaque chargement d'un mod.
+.claude-plugin/types/
+
+# Analyse SonarQube lancée à la main.
+.scannerwork/

@@ -1,0 +1,16 @@
+{
+  "name": "plan-de-vol-qa",
+  "private": true,
+  "type": "module",
+  "description": "Banc qualité du mod plan-de-vol : lint, couverture et mutation testing, hors du dossier du mod (surveillé et rechargé à chaud).",
+  "scripts": {
+    "lint": "./lint.sh",
+    "typecheck": "tsc -p ../../plan-de-vol",
+    "test": "claude plugin test ../../plan-de-vol",
+    "coverage": "node coverage.mjs",
+    "mutation": "node mutation.mjs",
+    "gaps": "node gaps.mjs",
+    "qa": "./lint.sh && npm test && node golden.mjs --check && node coverage.mjs && node mutation.mjs",
+    "golden": "node golden.mjs"
+  }
+}

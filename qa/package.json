@@ -1,0 +1,20 @@
+{
+  "name": "mods-qa",
+  "private": true,
+  "type": "module",
+  "description": "Dépendances communes aux bancs qualité des mods (status-band, plan-de-vol) : lint, types, couverture, mutation. Tenues hors des dossiers que Claude Code charge et recharge à chaud.",
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@stryker-mutator/api": "10.1.1",
+    "@stryker-mutator/instrumenter": "10.1.1",
+    "eslint": "10.13.0",
+    "istanbul-lib-coverage": "3.2.2",
+    "istanbul-lib-instrument": "6.0.3",
+    "istanbul-lib-report": "3.0.1",
+    "istanbul-reports": "3.2.0",
+    "mutation-testing-elements": "3.9.0",
+    "mutation-testing-report-schema": "3.9.0",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.72.1"
+  }
+}
